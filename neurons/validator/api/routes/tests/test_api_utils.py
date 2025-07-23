@@ -137,7 +137,7 @@ async def test_get_lr_predictions_events(
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events=events)
+        await db_operations.upsert_events(events=events)
 
         # insert predictions like 0.0, 0.01, 0.02, 0.03, ..., 0.99 for calculations
         predictions = [

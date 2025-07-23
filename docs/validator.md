@@ -194,6 +194,12 @@ Provide the wallet's hotkey.
 **Optional**. Absolute path to the directory where the database file is located or will be created.
 Example: /workspace/db_directory
 
+`--logging.trace`
+`--logging.debug`
+`--logging.info`
+
+**Optional**. Flag to set loggers level
+
 ### Direct Run
 
 Run the following command inside the `infinite_games` directory:

@@ -27,7 +27,7 @@ class TestEventsRoutes:
             ),
         ]
 
-        await test_db_operations.upsert_pydantic_events(events=events)
+        await test_db_operations.upsert_events(events=events)
 
         return {"events": events}
 

@@ -8,6 +8,7 @@ from bittensor_wallet import Wallet
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
+from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.models.prediction import PredictionExportedStatus
 from neurons.validator.tasks.export_predictions import ExportPredictions
 from neurons.validator.utils.common.interval import (
@@ -133,41 +134,41 @@ class TestExportPredictions:
         export_predictions_task.api_client = AsyncMock(spec=IfGamesClient)
 
         events = [
-            (
-                "unique_event_id_1",
-                "event_1",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                "status1",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-02T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_event_id_1",
+                event_id="event_1",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-02T14:30:00+00:00",
             ),
-            (
-                "unique_event_id_2",
-                "event_2",
-                "truncated_market2",
-                "market_2",
-                "desc2",
-                "outcome2",
-                "status2",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-02T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_event_id_2",
+                event_id="event_2",
+                market_type="truncated_market2",
+                event_type="market_2",
+                description="desc2",
+                outcome="outcome2",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-02T14:30:00+00:00",
             ),
-            (
-                "unique_event_id_3",
-                "event_3",
-                "truncated_market3",
-                "market_3",
-                "desc3",
-                "outcome3",
-                "status3",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-02T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_event_id_3",
+                event_id="event_3",
+                market_type="truncated_market3",
+                event_type="market_3",
+                description="desc3",
+                outcome="outcome3",
+                status=EventStatus.DELETED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-02T14:30:00+00:00",
             ),
         ]
 

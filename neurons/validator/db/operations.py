@@ -1,5 +1,7 @@
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Type, TypeVar
+
+from pydantic import BaseModel
 
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.models.event import EVENTS_FIELDS, EventsModel, EventStatus
@@ -16,6 +18,9 @@ from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 SQL_FOLDER = Path(Path(__file__).parent, "sql")
 
 
+GenericModel = TypeVar("GenericModel", bound=BaseModel)
+
+
 class DatabaseOperations:
     __db_client: DatabaseClient
     logger: InfiniteGamesLogger
@@ -29,6 +34,24 @@ class DatabaseOperations:
 
         self.__db_client = db_client
         self.logger = logger
+
+    def _parse_rows(
+        self, model: Type[GenericModel], rows: Iterable[tuple], throw_on_error: bool = False
+    ) -> list[GenericModel]:
+        parsed_rows = []
+
+        for row in rows:
+            try:
+                parsed_rows.append(model(**dict(row)))
+            except Exception as e:
+                if throw_on_error:
+                    raise e
+
+                self.logger.exception(
+                    "Error parsing model", extra={"row": row, "model": model.__name__}
+                )
+
+        return parsed_rows
 
     async def delete_event(self, event_id: str, deleted_at: str) -> Iterable[tuple[str]]:
         return await self.__db_client.update(
@@ -381,46 +404,6 @@ class DatabaseOperations:
             [EventStatus.SETTLED, outcome, resolved_at, event_id, EventStatus.PENDING],
         )
 
-    async def upsert_events(self, events: list[list[any]]) -> None:
-        return await self.__db_client.insert_many(
-            """
-                INSERT INTO events
-                    (
-                        unique_event_id,
-                        event_id,
-                        market_type,
-                        event_type,
-                        description,
-                        outcome,
-                        status,
-                        metadata,
-                        created_at,
-                        cutoff,
-                        registered_date,
-                        local_updated_at
-                    )
-                VALUES
-                    (
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        CURRENT_TIMESTAMP,
-                        CURRENT_TIMESTAMP
-                    )
-                ON CONFLICT
-                    (unique_event_id)
-                DO NOTHING
-            """,
-            events,
-        )
-
     async def upsert_miners(self, miners: list[list[any]]) -> None:
         return await self.__db_client.insert_many(
             """
@@ -491,8 +474,8 @@ class DatabaseOperations:
             predictions,
         )
 
-    async def upsert_pydantic_events(self, events: list[EventsModel]) -> None:
-        """Same as upsert_events but with pydantic models"""
+    async def upsert_events(self, events: list[EventsModel]) -> None:
+        """Upsert a list of EventsModel objects into the database"""
 
         fields_to_insert = [
             field_name
@@ -574,13 +557,7 @@ class DatabaseOperations:
             use_row_factory=True,
         )
 
-        events = []
-        for row in rows:
-            try:
-                event = EventsModel(**dict(row))
-                events.append(event)
-            except Exception:
-                self.logger.exception("Error parsing event", extra={"row": row})
+        events = self._parse_rows(model=EventsModel, rows=rows)
 
         return events
 
@@ -604,14 +581,7 @@ class DatabaseOperations:
             use_row_factory=True,
         )
 
-        predictions = []
-
-        for row in rows:
-            try:
-                prediction = PredictionsModel(**dict(row))
-                predictions.append(prediction)
-            except Exception:
-                self.logger.exception("Error parsing prediction", extra={"row": row})
+        predictions = self._parse_rows(model=PredictionsModel, rows=rows)
 
         return predictions
 
@@ -627,13 +597,7 @@ class DatabaseOperations:
             use_row_factory=True,
         )
 
-        predictions = []
-        for row in rows:
-            try:
-                prediction = PredictionsModel(**dict(row))
-                predictions.append(prediction)
-            except Exception:
-                self.logger.exception("Error parsing prediction", extra={"row": row})
+        predictions = self._parse_rows(model=PredictionsModel, rows=rows)
 
         return predictions
 
@@ -657,13 +621,8 @@ class DatabaseOperations:
             """,
             use_row_factory=True,
         )
-        miners = []
-        for row in rows:
-            try:
-                miner = MinersModel(**dict(row))
-                miners.append(miner)
-            except Exception:
-                self.logger.exception("Error parsing miner", extra={"row": row})
+
+        miners = self._parse_rows(model=MinersModel, rows=rows)
 
         return miners
 
@@ -807,13 +766,7 @@ class DatabaseOperations:
             ],
         )
 
-        events = []
-        for row in rows:
-            try:
-                event = EventsModel(**dict(row))
-                events.append(event)
-            except Exception:
-                self.logger.exception("Error parsing event", extra={"row": row})
+        events = self._parse_rows(model=EventsModel, rows=rows)
 
         return events
 
@@ -834,13 +787,7 @@ class DatabaseOperations:
             use_row_factory=True,
         )
 
-        scores = []
-        for row in rows:
-            try:
-                score = ScoresModel(**dict(row))
-                scores.append(score)
-            except Exception:
-                self.logger.exception("Error parsing score", extra={"row": row})
+        scores = self._parse_rows(model=ScoresModel, rows=rows)
 
         return scores
 
@@ -888,13 +835,7 @@ class DatabaseOperations:
             use_row_factory=True,
         )
 
-        scores = []
-        for row in rows:
-            try:
-                score = ScoresModel(**dict(row))
-                scores.append(score)
-            except Exception:
-                self.logger.exception("Error parsing score", extra={"row": row})
+        scores = self._parse_rows(model=ScoresModel, rows=rows)
 
         return scores
 

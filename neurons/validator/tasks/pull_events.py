@@ -74,7 +74,7 @@ class PullEvents(AbstractTask):
 
             # Batch insert in the db
             if len(parsed_events_for_insertion) > 0:
-                await self.db_operations.upsert_pydantic_events(events=parsed_events_for_insertion)
+                await self.db_operations.upsert_events(events=parsed_events_for_insertion)
 
             if len(items) < self.page_size:
                 # Break if no more events

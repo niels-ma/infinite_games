@@ -14,7 +14,7 @@ from bittensor.core.metagraph import MetagraphMixin
 from neurons.protocol import EventPrediction, EventPredictionSynapse
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
-from neurons.validator.models.event import EventStatus
+from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.models.reasoning import ReasoningModel
 from neurons.validator.tasks.query_miners import REASONING_LENGTH_LIMIT, QueryMiners
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
@@ -593,33 +593,33 @@ class TestQueryMiners:
         cutoff_future = (datetime.now(timezone.utc) + timedelta(seconds=2)).isoformat()
 
         events = [
-            (
-                "ifgames-event1",
-                "event1",
-                "ifgames",
-                "sports",
-                "desc1",
-                "outcome2",
-                EventStatus.PENDING,
-                json.dumps({"market_type": "sports"}),
-                "2012-12-02T14:30:00+00:00",
-                cutoff_future,
+            EventsModel(
+                unique_event_id="ifgames-event1",
+                event_id="event1",
+                market_type="ifgames",
+                event_type="sports",
+                description="desc1",
+                outcome="outcome2",
+                status=EventStatus.PENDING,
+                metadata=json.dumps({"market_type": "sports"}),
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff=cutoff_future,
             ),
-            (
-                "ifgames-event2",
-                "event2",
-                "ifgames",
-                "acled",
-                "desc2",
-                "outcome2",
-                EventStatus.PENDING,
-                json.dumps({"market_type": "acled"}),
-                "2012-12-02T14:30:00+00:00",
-                cutoff_future,
+            EventsModel(
+                unique_event_id="ifgames-event2",
+                event_id="event2",
+                market_type="ifgames",
+                event_type="acled",
+                description="desc2",
+                outcome="outcome2",
+                status=EventStatus.PENDING,
+                metadata=json.dumps({"market_type": "acled"}),
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff=cutoff_future,
             ),
         ]
 
-        await db_operations.upsert_events(events)
+        await db_operations.upsert_events(events=events)
 
         # Set up the bittensor mocks
         block = 101.0
@@ -810,21 +810,21 @@ class TestQueryMiners:
 
         # Set events to query & predict
         events = [
-            (
-                "unique1",
-                "event1",
-                "ifgames",
-                "sports",
-                "desc1",
-                "outcome2",
-                EventStatus.PENDING,
-                json.dumps({"market_type": "sports"}),
-                "2012-12-02T14:30:00+00:00",
-                (datetime.now(timezone.utc) + timedelta(seconds=2)).isoformat(),
+            EventsModel(
+                unique_event_id="unique1",
+                event_id="event1",
+                market_type="ifgames",
+                event_type="sports",
+                description="desc1",
+                outcome="outcome2",
+                status=EventStatus.PENDING,
+                metadata=json.dumps({"market_type": "sports"}),
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff=(datetime.now(timezone.utc) + timedelta(seconds=2)).isoformat(),
             ),
         ]
 
-        await db_operations.upsert_events(events)
+        await db_operations.upsert_events(events=events)
 
         # Run the task
         await query_miners_task.run()
