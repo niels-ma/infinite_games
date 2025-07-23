@@ -24,7 +24,11 @@ from neurons.validator.tasks.set_weights import SetWeights
 from neurons.validator.tasks.train_cp_model import TrainCommunityPredictionModel
 from neurons.validator.utils.config import get_config
 from neurons.validator.utils.env import ENVIRONMENT_VARIABLES, assert_requirements
-from neurons.validator.utils.logger.logger import logger, set_bittensor_logger
+from neurons.validator.utils.logger.logger import (
+    logger,
+    override_loggers_level,
+    set_bittensor_logger,
+)
 
 
 async def main():
@@ -35,11 +39,13 @@ async def main():
     logger.start_session()
 
     # Set dependencies
-    config, ifgames_env, db_path = get_config()
+    config, ifgames_env, db_path, logging_level = get_config()
 
-    # Bittensor stuff
+    # Loggers
+    override_loggers_level(logging_level)
     set_bittensor_logger()
 
+    # Bittensor stuff
     bt_netuid = config.get("netuid")
     bt_network = config.get("subtensor").get("network")
     bt_wallet = Wallet(config=config)

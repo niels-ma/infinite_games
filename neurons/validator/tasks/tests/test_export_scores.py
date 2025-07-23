@@ -250,7 +250,7 @@ class TestExportScores:
     ):
         unit = export_scores_task
         event = sample_event
-        await db_operations.upsert_pydantic_events([event])
+        await db_operations.upsert_events([event])
 
         score = ScoresModel(
             event_id=event.event_id,
@@ -289,7 +289,7 @@ class TestExportScores:
         unit = export_scores_task
         unit.api_client.post_scores = AsyncMock(return_value=True)
         event = sample_event
-        await db_operations.upsert_pydantic_events([event])
+        await db_operations.upsert_events([event])
 
         score = ScoresModel(
             event_id=event.event_id,
@@ -329,7 +329,7 @@ class TestExportScores:
         unit
         unit.api_client.post_scores = AsyncMock(side_effect=Exception("Simulated failure"))
         event = sample_event
-        await db_operations.upsert_pydantic_events([event])
+        await db_operations.upsert_events([event])
 
         score = ScoresModel(
             event_id=event.event_id,
@@ -373,7 +373,7 @@ class TestExportScores:
         event_2 = event.model_copy(deep=True)
         event_2.event_id = "event_id_2"
         event_2.unique_event_id = "unique_event_id_2"
-        await db_operations.upsert_pydantic_events([event, event_2])
+        await db_operations.upsert_events([event, event_2])
         events_inserted = await db_client.many("SELECT * FROM events", use_row_factory=True)
         assert len(events_inserted) == 2
 

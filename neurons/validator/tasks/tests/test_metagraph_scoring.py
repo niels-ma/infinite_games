@@ -729,7 +729,7 @@ class TestMetagraphScoring:
                     )
                 )
 
-            await db_operations.upsert_pydantic_events(stub_events)
+            await db_operations.upsert_events(stub_events)
 
         # insert scores
         sql = f"""

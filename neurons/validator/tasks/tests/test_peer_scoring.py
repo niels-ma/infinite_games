@@ -1062,7 +1062,7 @@ class TestPeerScoring:
             cutoff=datetime(2025, 1, 1, 8, 0, tzinfo=timezone.utc),  # before registered_date
             registered_date=datetime(2025, 1, 1, 9, 0, tzinfo=timezone.utc),
         )
-        await db_operations.upsert_pydantic_events([event])
+        await db_operations.upsert_events([event])
         predictions = []
 
         unit = peer_scoring_task
@@ -1443,7 +1443,7 @@ class TestPeerScoring:
                 resolved_at="2024-12-30T14:30:00+00:00",
             ),
         ]
-        await db_ops.upsert_pydantic_events(events)
+        await db_ops.upsert_events(events)
         # registered_date is set by insertion - update it
         fixed_timestamp = datetime(2024, 12, 25, 12, 0, 0, tzinfo=timezone.utc).isoformat()
         await db_client.update(f"UPDATE events SET registered_date = '{fixed_timestamp}'")

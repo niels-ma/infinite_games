@@ -1,4 +1,5 @@
 import argparse
+import logging
 from pathlib import Path
 from typing import Literal
 from unittest.mock import ANY
@@ -40,11 +41,15 @@ def get_config():
     LoggingMachine.add_args(parser=parser)
     Wallet.add_args(parser=parser)
 
-    # Validate args
+    # Read args
     args = parser.parse_args()
     netuid = args.__getattribute__("netuid")
     network = args.__getattribute__("subtensor.network")
     ifgames_env = args.__getattribute__("ifgames.env")
+    logging_trace = args.__getattribute__("logging.trace")
+    logging_debug = args.__getattribute__("logging.debug")
+    logging_info = args.__getattribute__("logging.info")
+
     # Set default, __getattribute__ doesn't return arguments defaults
     db_directory = args.__getattribute__("db.directory") or str(Path.cwd())
 
@@ -74,4 +79,12 @@ def get_config():
     db_filename = "validator.db" if env == "prod" else "validator_test.db"
     db_path = str(Path(db_directory) / db_filename)
 
-    return config, env, db_path
+    # Set logging level based on args
+    logging_level: int = logging.WARNING
+
+    if logging_trace or logging_debug:
+        logging_level = logging.DEBUG
+    elif logging_info:
+        logging_level = logging.INFO
+
+    return config, env, db_path, logging_level

@@ -69,7 +69,7 @@ class TestDbOperationsPart2(TestDbOperationsBase):
             resolved_at=now.isoformat(),
         )
 
-        await db_operations.upsert_pydantic_events([export_event, non_export_event])
+        await db_operations.upsert_events([export_event, non_export_event])
 
         raw_scores = await db_client.many(
             "SELECT event_id, ROWID, processed, exported FROM scores ORDER BY ROWID ASC",
@@ -115,8 +115,9 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         assert result == []
         assert len(logged_exceptions) >= 1
         for msg, extra in logged_exceptions:
-            assert "Error parsing event" in msg
+            assert "Error parsing model" in msg
             assert "row" in extra
+            assert "model" in extra
 
     async def test_get_peer_scores_for_export_basic(self, db_operations, db_client):
         event_id = "test_event"
@@ -184,8 +185,9 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         assert scores == []
         assert len(logged_exceptions) >= 1
         for msg, extra in logged_exceptions:
-            assert "Error parsing score" in msg
+            assert "Error parsing model" in msg
             assert "row" in extra
+            assert "model" in extra
 
     async def test_mark_peer_scores_as_exported(self, db_operations, db_client):
         events = ["event1", "event2", "event3"]
@@ -356,7 +358,7 @@ class TestDbOperationsPart2(TestDbOperationsBase):
             resolved_at=now.isoformat(),
         )
 
-        await db_operations.upsert_pydantic_events([export_event, non_export_event])
+        await db_operations.upsert_events([export_event, non_export_event])
 
         initial = await db_client.many(
             "SELECT unique_event_id, status FROM events ORDER BY ROWID ASC",
@@ -391,7 +393,7 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         self, db_operations: DatabaseOperations, db_client: DatabaseClient
     ):
         events = [
-            #    Orphan scores
+            # Orphan scores
         ]
 
         scores = [
@@ -446,29 +448,29 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         self, db_operations: DatabaseOperations, db_client: DatabaseClient
     ):
         events = [
-            (
-                "discarded_event_id",
-                "discarded_event_id",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                EventStatus.DISCARDED,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="discarded_event_id",
+                event_id="discarded_event_id",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.DISCARDED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
-            (
-                "pending_event_id",
-                "pending_event_id",
-                "truncated_market2",
-                "market_2",
-                "desc2",
-                "outcome2",
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2012-12-02T14:30:00+00:00",
-                "2001-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="pending_event_id",
+                event_id="pending_event_id",
+                market_type="truncated_market2",
+                event_type="market_2",
+                description="desc2",
+                outcome="outcome2",
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff="2001-01-01T14:30:00+00:00",
             ),
         ]
 
@@ -524,41 +526,41 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         self, db_operations: DatabaseOperations, db_client: DatabaseClient
     ):
         events = [
-            (
-                "deleted_event_id_1",
-                "deleted_event_id_1",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                EventStatus.DELETED,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="deleted_event_id_1",
+                event_id="deleted_event_id_1",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.DELETED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
-            (
-                "deleted_event_id_2",
-                "deleted_event_id_2",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                EventStatus.DELETED,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="deleted_event_id_2",
+                event_id="deleted_event_id_2",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.DELETED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
-            (
-                "pending_event_id",
-                "pending_event_id",
-                "truncated_market2",
-                "market_2",
-                "desc2",
-                "outcome2",
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2012-12-02T14:30:00+00:00",
-                "2001-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="pending_event_id",
+                event_id="pending_event_id",
+                market_type="truncated_market2",
+                event_type="market_2",
+                description="desc2",
+                outcome="outcome2",
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff="2001-01-01T14:30:00+00:00",
             ),
         ]
 
@@ -627,53 +629,53 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         self, db_operations: DatabaseOperations, db_client: DatabaseClient
     ):
         events = [
-            (
-                "processed_event_old_id",
-                "processed_event_old_id",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                "status1",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="processed_event_old_id",
+                event_id="processed_event_old_id",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
-            (
-                "processed_event_old_non_exported_score_id",
-                "processed_event_old_non_exported_score_id",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                "status1",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="processed_event_old_non_exported_score_id",
+                event_id="processed_event_old_non_exported_score_id",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
-            (
-                "processed_event_new_id",
-                "processed_event_new_id",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                "status1",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="processed_event_new_id",
+                event_id="processed_event_new_id",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
-            (
-                "non_processed_event_id",
-                "non_processed_event_id",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                "status1",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="non_processed_event_id",
+                event_id="non_processed_event_id",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
         ]
 
@@ -783,41 +785,41 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         self, db_operations: DatabaseOperations, db_client: DatabaseClient
     ):
         events = [
-            (
-                "event_id_1",
-                "event_id_1",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                "status1",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="event_id_1",
+                event_id="event_id_1",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.DELETED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-01-01T14:30:00+00:00",
             ),
-            (
-                "event_id_2",
-                "event_id_2",
-                "truncated_market2",
-                "market_2",
-                "desc2",
-                "outcome2",
-                "status2",
-                '{"key": "value"}',
-                "2012-12-02T14:30:00+00:00",
-                "2001-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="event_id_2",
+                event_id="event_id_2",
+                market_type="truncated_market2",
+                event_type="market_2",
+                description="desc2",
+                outcome="outcome2",
+                status=EventStatus.DELETED,
+                metadata='{"key": "value"}',
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff="2001-01-01T14:30:00+00:00",
             ),
-            (
-                "event_id_3",
-                "event_id_3",
-                "truncated_market3",
-                "market_3",
-                "desc3",
-                "outcome3",
-                "status3",
-                '{"key": "value"}',
-                "2012-12-02T14:30:00+00:00",
-                "2001-01-01T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="event_id_3",
+                event_id="event_id_3",
+                market_type="truncated_market3",
+                event_type="market_3",
+                description="desc3",
+                outcome="outcome3",
+                status=EventStatus.DELETED,
+                metadata='{"key": "value"}',
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff="2001-01-01T14:30:00+00:00",
             ),
         ]
 
@@ -915,29 +917,29 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         # Create events with different resolved_at timestamps
 
         events = [
-            (
-                "old_event_id",
-                "old_event_id",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                "outcome1",
-                "status1",
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-02T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="old_event_id",
+                event_id="old_event_id",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome="outcome1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-02T14:30:00+00:00",
             ),
-            (
-                "recent_event_id",
-                "recent_event_id",
-                "truncated_market2",
-                "market_2",
-                "desc2",
-                "outcome2",
-                "status2",
-                '{"key": "value"}',
-                "2012-12-02T14:30:00+00:00",
-                "2012-12-02T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="recent_event_id",
+                event_id="recent_event_id",
+                market_type="truncated_market2",
+                event_type="market_2",
+                description="desc2",
+                outcome="outcome2",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value"}',
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff="2012-12-02T14:30:00+00:00",
             ),
         ]
 
@@ -981,7 +983,7 @@ class TestDbOperationsPart2(TestDbOperationsBase):
                 (
                     datetime.now(timezone.utc) - timedelta(days=15, hours=1)
                 ).isoformat(),  # Resolved 15 days ago
-                events[0][0],
+                events[0].unique_event_id,
             ],
         )
 
@@ -998,7 +1000,7 @@ class TestDbOperationsPart2(TestDbOperationsBase):
             [
                 True,
                 (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(),  # Resolved 3 days ago
-                events[1][0],
+                events[1].unique_event_id,
             ],
         )
 
@@ -1073,7 +1075,7 @@ class TestDbOperationsPart2(TestDbOperationsBase):
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events=events)
+        await db_operations.upsert_events(events=events)
 
         scores = [
             ScoresModel(

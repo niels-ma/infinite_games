@@ -9,7 +9,7 @@ from bittensor_wallet import Wallet
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
-from neurons.validator.models.event import EventStatus
+from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.tasks.delete_events import DeleteEvents
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
@@ -110,63 +110,63 @@ class TestDeleteEventsTask:
         delete_events_task.page_size = 1
 
         events = [
-            (
-                "unique_1",
-                "event_id_1",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_1",
+                event_id="event_id_1",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_2",
-                "event_id_2",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "1950-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_2",
+                event_id="event_id_2",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="1950-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_3",
-                "event_id_3",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "1900-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_3",
+                event_id="event_id_3",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="1900-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_4",
-                "event_id_4",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_4",
+                event_id="event_id_4",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
         ]
 
-        await db_operations.upsert_events(events)
+        await db_operations.upsert_events(events=events)
 
         api_response_1 = {
             "count": 1,
             "items": [
                 {
-                    "event_id": events[3][1],
+                    "event_id": events[3].event_id,
                     "deleted_at": "2012-09-10T20:43:02Z",
                 }
             ],
@@ -176,7 +176,7 @@ class TestDeleteEventsTask:
             "count": 1,
             "items": [
                 {
-                    "event_id": events[2][1],
+                    "event_id": events[2].event_id,
                     "deleted_at": "2024-09-11T20:43:02Z",
                 }
             ],
@@ -191,7 +191,7 @@ class TestDeleteEventsTask:
             "count": 1,
             "items": [
                 {
-                    "event_id": events[1][1],
+                    "event_id": events[1].event_id,
                     "deleted_at": "2024-09-05T20:43:02Z",
                 }
             ],
@@ -251,10 +251,10 @@ class TestDeleteEventsTask:
             # Event 3 and 4 are soft deleted, events 1 and 2 are left
             assert len(response) == 4
             assert response == [
-                (events[0][1], str(EventStatus.PENDING.value), None),
-                (events[1][1], str(EventStatus.PENDING.value), None),
-                (events[2][1], str(EventStatus.DELETED.value), "2024-09-11 20:43:02+00:00"),
-                (events[3][1], str(EventStatus.DELETED.value), "2012-09-10 20:43:02+00:00"),
+                (events[0].event_id, str(EventStatus.PENDING.value), None),
+                (events[1].event_id, str(EventStatus.PENDING.value), None),
+                (events[2].event_id, str(EventStatus.DELETED.value), "2024-09-11 20:43:02+00:00"),
+                (events[3].event_id, str(EventStatus.DELETED.value), "2012-09-10 20:43:02+00:00"),
             ]
 
             # Act run again
@@ -270,8 +270,8 @@ class TestDeleteEventsTask:
             # Event 2 is soft deleted too, event 1 is left
             assert len(response) == 4
             assert response == [
-                (events[0][1], str(EventStatus.PENDING.value), None),
-                (events[1][1], str(EventStatus.DELETED.value), "2024-09-05 20:43:02+00:00"),
-                (events[2][1], str(EventStatus.DELETED.value), "2024-09-11 20:43:02+00:00"),
-                (events[3][1], str(EventStatus.DELETED.value), "2012-09-10 20:43:02+00:00"),
+                (events[0].event_id, str(EventStatus.PENDING.value), None),
+                (events[1].event_id, str(EventStatus.DELETED.value), "2024-09-05 20:43:02+00:00"),
+                (events[2].event_id, str(EventStatus.DELETED.value), "2024-09-11 20:43:02+00:00"),
+                (events[3].event_id, str(EventStatus.DELETED.value), "2012-09-10 20:43:02+00:00"),
             ]

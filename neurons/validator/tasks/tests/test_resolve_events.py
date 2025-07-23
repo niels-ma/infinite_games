@@ -10,7 +10,7 @@ from bittensor_wallet import Wallet
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
-from neurons.validator.models.event import EventStatus
+from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.tasks.resolve_events import ResolveEvents
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
@@ -105,29 +105,29 @@ class TestResolveEventsTask:
     ):
         # Arrange
         events = [
-            (
-                "unique_1",
-                "event_id_1",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_1",
+                event_id="event_id_1",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_2",
-                "event_id_2",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_2",
+                event_id="event_id_2",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
         ]
 
@@ -138,10 +138,10 @@ class TestResolveEventsTask:
         event_2_resolved_at = (current_time + timedelta(seconds=100)).isoformat()
 
         await db_operations.resolve_event(
-            event_id=events[0][1], outcome=1, resolved_at=event_1_resolved_at
+            event_id=events[0].event_id, outcome=1, resolved_at=event_1_resolved_at
         )
         await db_operations.resolve_event(
-            event_id=events[1][1], outcome=1, resolved_at=event_2_resolved_at
+            event_id=events[1].event_id, outcome=1, resolved_at=event_2_resolved_at
         )
 
         api_response = {"count": 0, "items": []}
@@ -171,31 +171,29 @@ class TestResolveEventsTask:
     ):
         # Arrange
         events = [
-            (
-                "unique_1",
-                "event_id_1",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                # created_at
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_1",
+                event_id="event_id_1",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_2",
-                "event_id_2",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                # created_at
-                "1512-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_2",
+                event_id="event_id_2",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="1512-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
         ]
 
@@ -206,9 +204,7 @@ class TestResolveEventsTask:
         # Mock API response
         with aioresponses() as mocked:
             backdated_resolved_since = (
-                (datetime.fromisoformat(events[1][8]) - timedelta(hours=1))
-                .isoformat()
-                .replace("+00:00", "Z")
+                (events[1].created_at - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
             )
 
             mocked.get(
@@ -234,63 +230,63 @@ class TestResolveEventsTask:
         resolve_events_task.page_size = 1
 
         events = [
-            (
-                "unique_1",
-                "event_id_1",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_1",
+                event_id="event_id_1",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_2",
-                "event_id_2",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "1900-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_2",
+                event_id="event_id_2",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="1900-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_3",
-                "event_id_3",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_3",
+                event_id="event_id_3",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
-            (
-                "unique_4",
-                "event_id_4",
-                "truncated_market1",
-                "market_1",
-                "desc1",
-                None,
-                EventStatus.PENDING,
-                '{"key": "value"}',
-                "2000-12-02T14:30:00+00:00",
-                "2000-12-30T14:30:00+00:00",
+            EventsModel(
+                unique_event_id="unique_4",
+                event_id="event_id_4",
+                market_type="truncated_market1",
+                event_type="market_1",
+                description="desc1",
+                outcome=None,
+                status=EventStatus.PENDING,
+                metadata='{"key": "value"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
             ),
         ]
 
-        await db_operations.upsert_events(events)
+        await db_operations.upsert_events(events=events)
 
         api_response_1 = {
             "count": 1,
             "items": [
                 {
-                    "event_id": events[3][1],
+                    "event_id": events[3].event_id,
                     "answer": 1,
                     "resolved_at": "2012-09-10T20:43:02Z",
                 }
@@ -301,7 +297,7 @@ class TestResolveEventsTask:
             "count": 1,
             "items": [
                 {
-                    "event_id": events[2][1],
+                    "event_id": events[2].event_id,
                     "answer": 0,
                     "resolved_at": "2024-09-11T20:43:02Z",
                 }
@@ -317,7 +313,7 @@ class TestResolveEventsTask:
             "count": 1,
             "items": [
                 {
-                    "event_id": events[1][1],
+                    "event_id": events[1].event_id,
                     "answer": 1,
                     "resolved_at": "2024-09-10T20:43:02Z",
                 }
@@ -339,7 +335,7 @@ class TestResolveEventsTask:
                     .replace("+00:00", "Z")
                 )
 
-            first_request_resolved_since = backdate(events[1][8])
+            first_request_resolved_since = backdate(events[1].created_at.isoformat())
 
             second_request_resolved_since = backdate("2024-09-11T20:43:02+00:00")
 

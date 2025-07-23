@@ -19,6 +19,8 @@ class TestValidatorMain:
         # Patch key dependencies inside the method
         with (
             patch("neurons.validator.main.assert_requirements") as mock_assert_requirements,
+            patch("neurons.validator.main.override_loggers_level") as mock_override_loggers_level,
+            patch("neurons.validator.main.set_bittensor_logger") as mock_set_bittensor_logger,
             patch("neurons.validator.main.get_config", spec=True) as get_config,
             patch("neurons.validator.main.Dendrite", spec=True),
             patch("neurons.validator.main.Wallet", spec=True),
@@ -39,7 +41,8 @@ class TestValidatorMain:
             ) as MockAPI,
         ):
             # Mock get_config
-            get_config.return_value = MagicMock(), config_env, db_path
+            logger_level = 99
+            get_config.return_value = MagicMock(), config_env, db_path, logger_level
 
             # Mock Subtensor
             mock_subtensor = MockSubtensor.return_value
@@ -65,6 +68,10 @@ class TestValidatorMain:
 
             # Verify assert_requirements() was called
             mock_assert_requirements.assert_called_once()
+
+            # Verify loggers set
+            mock_override_loggers_level.assert_called_once_with(logger_level)
+            mock_set_bittensor_logger.assert_called_once()
 
             # Verify start session called
             mock_logger.start_session.assert_called_once()

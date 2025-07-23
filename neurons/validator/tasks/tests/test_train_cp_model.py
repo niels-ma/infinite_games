@@ -123,7 +123,7 @@ class TestTrainCPModel:
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events)
+        await db_operations.upsert_events(events)
 
     def test_init(self, train_cp_model_task: TrainCommunityPredictionModel):
         unit = train_cp_model_task
@@ -317,7 +317,7 @@ class TestTrainCPModel:
         # insert more data to have more classes
         unique_event_id_3 = "unique_event_id_3"
         now = datetime.now(timezone.utc)
-        await db_operations.upsert_pydantic_events(
+        await db_operations.upsert_events(
             [
                 EventsModel(
                     unique_event_id=unique_event_id_3,

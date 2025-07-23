@@ -38,11 +38,9 @@ logging.Logger.makeRecord = make_record_with_extra
 # Factory function to create and configure a logger
 def create_logger(
     name: str = None,
-    level: any = logging.DEBUG,
 ) -> InfiniteGamesLogger:
     # Initialize the logger with the specified name and level
     logger = logging.getLogger(name)
-    logger.setLevel(level)
     logger.propagate = False
 
     # Add a console handler with JSON formatter
@@ -55,9 +53,21 @@ def create_logger(
     return logger
 
 
+loggers_level = None
+
+
+def override_loggers_level(level: int):
+    logger.setLevel(level)
+    api_logger.setLevel(level)
+
+    global loggers_level
+    loggers_level = level
+
+
 def set_bittensor_logger():
     bt_logger = logging.getLogger("bittensor")
     bt_logger.propagate = False
+    bt_logger.setLevel(loggers_level)
 
     # Add a console handler with JSON formatter
     json_handler = logging.StreamHandler()
@@ -71,6 +81,7 @@ def set_bittensor_logger():
 
 def set_uvicorn_logger():
     uvicorn_logger = logging.getLogger("uvicorn")
+    uvicorn_logger.setLevel(loggers_level)
 
     # Add a console handler with JSON formatter
     json_handler = logging.StreamHandler()

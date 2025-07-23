@@ -1,5 +1,9 @@
 # Release Notes
 
+## [1.5.6] - 2025-07-22
+- **Logger**: Added logger level command options
+- **Bittensor Upgrade**: Upgraded to Bittensor version 9.8.2
+
 ## [1.5.5] - 2025-07-15
 - **Scoring**: Update interval scoring weights to parabolic decay
 - **Bittensor Upgrade**: Upgraded to Bittensor version 9.8.0

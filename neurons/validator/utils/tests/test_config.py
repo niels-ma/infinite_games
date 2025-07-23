@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -36,7 +37,16 @@ class TestConfig:
         with patch("neurons.validator.utils.config.Config") as mock:
             yield mock
 
-    def create_mock_args(self, netuid=None, network=None, ifgames_env=None, db_directory=None):
+    def create_mock_args(
+        self,
+        netuid=None,
+        network=None,
+        ifgames_env=None,
+        db_directory=None,
+        logging_trace=None,
+        logging_debug=None,
+        logging_info=None,
+    ):
         """Helper method to create a mock args object with the required attributes"""
         mock_args = MagicMock()
 
@@ -46,6 +56,9 @@ class TestConfig:
             "subtensor.network": network,
             "ifgames.env": ifgames_env,
             "db.directory": db_directory,
+            "logging.trace": logging_trace,
+            "logging.debug": logging_debug,
+            "logging.info": logging_info,
         }.get(x)
 
         return mock_args
@@ -55,7 +68,7 @@ class TestConfig:
         with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = self.create_mock_args(netuid=6, network="finney")
 
-            config, env, db_path = get_config()
+            config, env, db_path, logger_level = get_config()
 
             mock_subtensor.add_args.assert_called_once()
             mock_logging_machine.add_args.assert_called_once()
@@ -64,6 +77,7 @@ class TestConfig:
             assert isinstance(config, Config)
             assert env == "prod"
             assert db_path == str(Path(DEFAULT_DB_DIRECTORY) / "validator.db")
+            assert logger_level == logging.WARNING
 
     def test_required_args_missing(self):
         """Test behavior when required arguments are missing"""
@@ -82,7 +96,7 @@ class TestConfig:
             mock_parse_args.return_value = self.create_mock_args(
                 netuid=6, network="finney", ifgames_env=None, db_directory=valid_dir
             )
-            _, env, db_path = get_config()
+            _, env, db_path, _ = get_config()
 
             assert env == "prod"
             assert db_path == str(Path(valid_dir) / "validator.db")
@@ -109,6 +123,30 @@ class TestConfig:
         assert isinstance(test_config["netuid"], int)
         assert test_config["subtensor.network"] in ["finney", "test", "local", None]
         assert test_config["ifgames.env"] in ["prod", "test", None]
+
+    @pytest.mark.parametrize(
+        "logging_trace,logging_debug,logging_info,expected_logger_level",
+        [
+            (True, True, True, logging.DEBUG),
+            (True, None, None, logging.DEBUG),
+            (None, True, None, logging.DEBUG),
+            (None, None, True, logging.INFO),
+            (None, None, None, logging.WARNING),
+        ],
+    )
+    def test_logger_args(self, logging_trace, logging_debug, logging_info, expected_logger_level):
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
+            mock_parse_args.return_value = self.create_mock_args(
+                netuid=6,
+                network="finney",
+                logging_trace=logging_trace,
+                logging_debug=logging_debug,
+                logging_info=logging_info,
+            )
+
+            _, _, _, logger_level = get_config()
+
+            assert logger_level == expected_logger_level
 
     @pytest.mark.parametrize(
         "test_args,expected_valid,expected_env,expected_db_path",
@@ -172,7 +210,7 @@ class TestConfig:
             )
 
             if expected_valid:
-                _, env, db_path = get_config()
+                _, env, db_path, _ = get_config()
 
                 mock_config.assert_called_once()
 

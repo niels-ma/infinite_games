@@ -224,7 +224,7 @@ class TestDbOperationsPart3(TestDbOperationsBase):
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events)
+        await db_operations.upsert_events(events)
 
         dataset = await db_operations.get_community_train_dataset()
         assert len(dataset) == 100
@@ -330,7 +330,7 @@ class TestDbOperationsPart3(TestDbOperationsBase):
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events=events)
+        await db_operations.upsert_events(events=events)
 
         scores = [
             ScoresModel(
@@ -505,7 +505,7 @@ class TestDbOperationsPart3(TestDbOperationsBase):
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events)
+        await db_operations.upsert_events(events)
 
         reasonings = [
             ReasoningModel(
@@ -567,7 +567,7 @@ class TestDbOperationsPart3(TestDbOperationsBase):
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events=events)
+        await db_operations.upsert_events(events=events)
 
         # Insert reasonings for the discarded event
         reasonings = [
@@ -626,7 +626,7 @@ class TestDbOperationsPart3(TestDbOperationsBase):
             resolved_at=resolved_at_recently,
             processed=True,
         )
-        await db_operations.upsert_pydantic_events([event])
+        await db_operations.upsert_events([event])
 
         reasonings = [
             ReasoningModel(
@@ -691,7 +691,7 @@ class TestDbOperationsPart3(TestDbOperationsBase):
         current_time = datetime.now(timezone.utc)
         future_time = current_time + timedelta(days=1)
 
-        await db_operations.upsert_pydantic_events(events=events)
+        await db_operations.upsert_events(events=events)
 
         # Delete events 1 and 3
         await db_operations.delete_event(event_id="event1", deleted_at=current_time)
@@ -758,7 +758,7 @@ class TestDbOperationsPart3(TestDbOperationsBase):
             ),
         ]
 
-        await db_operations.upsert_pydantic_events(events=events)
+        await db_operations.upsert_events(events=events)
 
         # Test delete events - batch size 1
         deleted = await db_operations.delete_events_hard_delete(batch_size=1)
