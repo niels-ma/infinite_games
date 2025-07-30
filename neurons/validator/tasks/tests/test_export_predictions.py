@@ -9,6 +9,7 @@ from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
 from neurons.validator.models.event import EventsModel, EventStatus
+from neurons.validator.models.if_games_client import PostPredictionsRequestBody
 from neurons.validator.models.prediction import PredictionExportedStatus
 from neurons.validator.tasks.export_predictions import ExportPredictions
 from neurons.validator.utils.common.interval import (
@@ -82,45 +83,45 @@ class TestExportPredictions:
             )
         ]
 
-        result = export_predictions_task.parse_predictions_for_exporting(predictions)
+        result = export_predictions_task.parse_predictions_for_exporting(
+            predictions_db_data=predictions
+        )
 
-        assert "submissions" in result
-        assert "events" in result
-        assert result["events"] is None
-        assert len(result["submissions"]) == 1
+        assert len(result.submissions) == 1
 
-        submission = result["submissions"][0]
-        assert submission["unique_event_id"] == "event123"
-        assert submission["provider_type"] == "weather"
-        assert submission["prediction"] == 0.75
-        assert submission["interval_start_minutes"] == 120
-        assert submission["interval_agg_prediction"] == 0.8
-        assert submission["interval_agg_count"] == 5
-        assert submission["miner_hotkey"] == "miner_key_1"
-        assert submission["miner_uid"] == 11
-        assert submission["validator_hotkey"] == "validator_hotkey_test"
-        assert submission["validator_uid"] == 0
-        assert submission["title"] is None
-        assert submission["outcome"] is None
+        prediction = result.submissions[0]
+
+        assert prediction.unique_event_id == "event123"
+        assert prediction.provider_type == "weather"
+        assert prediction.prediction == 0.75
+        assert prediction.interval_start_minutes == 120
+        assert prediction.interval_agg_prediction == 0.8
+        assert prediction.interval_agg_count == 5
+        assert prediction.miner_hotkey == "miner_key_1"
+        assert prediction.miner_uid == 11
+        assert prediction.validator_hotkey == "validator_hotkey_test"
+        assert prediction.validator_uid == 0
+        assert prediction.title is None
+        assert prediction.outcome is None
 
         # Verify datetime calculation
-        expected_datetime = datetime(2024, 1, 1, 2, 0, 0, 0, tzinfo=timezone.utc).isoformat()
-        assert submission["interval_datetime"] == expected_datetime
+        expected_datetime = datetime(2024, 1, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
+        assert prediction.interval_datetime == expected_datetime
 
     def test_parse_predictions_for_exporting_multiple_predictions(
         self, export_predictions_task: ExportPredictions
     ):
         # Test with multiple predictions
         predictions = [
-            (0, "event1", "miner1", "uid1", "weather", 0.75, 120, 0.8, 5, "2024-01-01 02:00:00"),
-            (0, "event2", "miner2", "uid2", "sports", 0.25, 240, 0.3, 3, "2024-01-01 04:00:00"),
+            (0, "event1", 1, "miner_hotkey_1", "weather", 0.75, 120, 0.8, 5, "2024-01-01 02:00:00"),
+            (0, "event2", 2, "miner_hotkey_2", "sports", 0.25, 240, 0.3, 3, "2024-01-01 04:00:00"),
         ]
 
         result = export_predictions_task.parse_predictions_for_exporting(predictions)
 
-        assert len(result["submissions"]) == 2
-        assert result["submissions"][0]["unique_event_id"] == "event1"
-        assert result["submissions"][1]["unique_event_id"] == "event2"
+        assert len(result.submissions) == 2
+        assert result.submissions[0].unique_event_id == "event1"
+        assert result.submissions[1].unique_event_id == "event2"
 
     async def test_run(
         self,
@@ -225,9 +226,8 @@ class TestExportPredictions:
         assert first_call == (
             "__call__",
             {
-                "predictions": {
-                    "events": None,
-                    "submissions": [
+                "body": PostPredictionsRequestBody(
+                    submissions=[
                         {
                             "unique_event_id": "unique_event_id_1",
                             "provider_type": "market_1",
@@ -246,16 +246,15 @@ class TestExportPredictions:
                             "outcome": None,
                             "submitted_at": result[0][1],
                         }
-                    ],
-                }
+                    ]
+                )
             },
         )
         assert second_call == (
             "__call__",
             {
-                "predictions": {
-                    "events": None,
-                    "submissions": [
+                "body": PostPredictionsRequestBody(
+                    submissions=[
                         {
                             "unique_event_id": "unique_event_id_2",
                             "provider_type": "market_2",
@@ -274,8 +273,8 @@ class TestExportPredictions:
                             "outcome": None,
                             "submitted_at": result[1][1],
                         }
-                    ],
-                }
+                    ]
+                )
             },
         )
 

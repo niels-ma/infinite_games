@@ -1,9 +1,7 @@
-import json
-
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
-from neurons.validator.models.backend_models import MinerScore, PostScores
 from neurons.validator.models.event import EventsModel
+from neurons.validator.models.if_games_client import MinerScore, PostScoresRequestBody
 from neurons.validator.models.score import ScoresModel
 from neurons.validator.scheduler.task import AbstractTask
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
@@ -53,59 +51,41 @@ class ExportScores(AbstractTask):
     def interval_seconds(self):
         return self.interval
 
-    def prepare_scores_payload(self, event: EventsModel, scores: list[ScoresModel]) -> list[dict]:
-        results = []
-        failures = 0
+    def prepare_scores_payload(self, event: EventsModel, db_scores: list[ScoresModel]):
+        scores = []
 
-        for score in scores:
-            try:
-                # override the spec version to be at least 1039 - peer scoring start
-                # also backend expects a string
-                backend_spec_version = str(max(score.spec_version, 1039))
+        for db_score in db_scores:
+            # override the spec version to be at least 1039 - peer scoring start
+            # also backend expects a string
+            backend_spec_version = str(max(db_score.spec_version, 1039))
 
-                result = MinerScore(
-                    event_id=score.event_id,  # awful: backend reconstructs unique_event_id
-                    prediction=score.prediction,
-                    answer=float(event.outcome),
-                    miner_hotkey=score.miner_hotkey,
-                    miner_uid=score.miner_uid,
-                    miner_score=score.event_score,
-                    miner_effective_score=score.metagraph_score,
-                    validator_hotkey=self.validator_hotkey,
-                    validator_uid=self.validator_uid,
-                    spec_version=backend_spec_version,
-                    registered_date=event.registered_date.isoformat(),
-                    scored_at=score.created_at.isoformat(),
-                )
-                results.append(result)
-            except Exception:
-                self.errors_count += 1
-                failures += 1
-                if failures < 5:  # prevent spamming the logs
-                    self.logger.exception(
-                        "Failed to parse a score payload.",
-                        extra={"event": event.model_dump(), "score": score.model_dump()},
-                    )
-        if not results:
-            return None
-
-        try:
-            payload = PostScores(results=results).model_dump_json()
-            return json.loads(payload)
-        except Exception:
-            self.errors_count += 1
-            self.logger.exception(
-                "Failed to model_dump() scores payload.", extra={"event_id": event.event_id}
+            score = MinerScore(
+                event_id=db_score.event_id,  # awful: backend reconstructs unique_event_id
+                prediction=db_score.prediction,
+                answer=float(event.outcome),
+                miner_hotkey=db_score.miner_hotkey,
+                miner_uid=db_score.miner_uid,
+                miner_score=db_score.event_score,
+                miner_effective_score=db_score.metagraph_score,
+                validator_hotkey=self.validator_hotkey,
+                validator_uid=self.validator_uid,
+                spec_version=backend_spec_version,
+                registered_date=event.registered_date,
+                scored_at=db_score.created_at,
             )
-            return None
 
-    async def export_scores_to_backend(self, payload: list[dict]):
-        await self.api_client.post_scores(scores=payload)
+            scores.append(score)
+
+        return PostScoresRequestBody(results=scores)
+
+    async def export_scores_to_backend(self, payload: PostScoresRequestBody):
+        await self.api_client.post_scores(body=payload)
+
         self.logger.debug(
             "Exported scores.",
             extra={
-                "event_id": payload["results"][0]["event_id"],
-                "n_scores": len(payload["results"]),
+                "event_id": payload.results[0].event_id,
+                "n_scores": len(payload.results),
             },
         )
 
@@ -125,7 +105,7 @@ class ExportScores(AbstractTask):
                 scores = await self.db_operations.get_peer_scores_for_export(
                     event_id=event.event_id
                 )
-                if not scores:
+                if not len(scores) > 0:
                     self.errors_count += 1
                     self.logger.warning(
                         "No peer scores found for event.",
@@ -133,14 +113,7 @@ class ExportScores(AbstractTask):
                     )
                     continue
 
-                payload = self.prepare_scores_payload(event=event, scores=scores)
-                if not payload:
-                    self.errors_count += 1
-                    self.logger.warning(
-                        "Failed to prepare scores payload.",
-                        extra={"event_id": event.event_id},
-                    )
-                    continue
+                payload = self.prepare_scores_payload(event=event, db_scores=scores)
 
                 try:
                     await self.export_scores_to_backend(payload)

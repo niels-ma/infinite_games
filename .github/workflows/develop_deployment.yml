@@ -69,7 +69,8 @@ jobs:
           ssh-add - <<< "${{ secrets.SSH_STAGE_PRIVATE_KEY }}"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_VALI_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
           export AWS_ECR_REGISTRY=${{ secrets.AWS_ECR_REGISTRY }}
-          docker-compose -f docker-compose.dev.yaml down --rmi all
+          export API_ACCESS_KEYS=not_needed
+          docker compose -f docker-compose.dev.yaml down --rmi all
           EOF
           scp -P ${{ secrets.SERVER_PORT }} docker-compose.dev.yaml root@${{ secrets.SERVER_STAGE_VALI_IP }}:/root/docker-compose.dev.yaml
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_VALI_IP }} -p ${{ secrets.SERVER_PORT }} << EOF
@@ -79,7 +80,7 @@ jobs:
           aws ecr get-login-password --region ${{ secrets.AWS_ECR_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_REGISTRY }}
           export AWS_ECR_REGISTRY=${{ secrets.AWS_ECR_REGISTRY }}
           export API_ACCESS_KEYS=${{ secrets.API_ACCESS_KEYS_DEV }}
-          docker-compose -f docker-compose.dev.yaml up -d if_validator_develop
+          docker compose -f docker-compose.dev.yaml up -d if_validator_develop
           EOF
 
   deploy_miner:
@@ -107,7 +108,8 @@ jobs:
           ssh-add - <<< "${{ secrets.SSH_PRIVATE_KEY }}"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_MINER_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
           export AWS_ECR_REGISTRY=${{ secrets.AWS_ECR_REGISTRY }}
-          docker-compose -f docker-compose.dev.yaml down --rmi all
+          export API_ACCESS_KEYS=not_needed
+          docker compose -f docker-compose.dev.yaml down --rmi all
           EOF
           scp -P ${{ secrets.SERVER_PORT }} docker-compose.dev.yaml root@${{ secrets.SERVER_STAGE_MINER_IP }}:/root/docker-compose.dev.yaml
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_MINER_IP }} -p ${{ secrets.SERVER_PORT }} << EOF
@@ -117,7 +119,7 @@ jobs:
           aws ecr get-login-password --region ${{ secrets.AWS_ECR_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_REGISTRY }}
           export AWS_ECR_REGISTRY=${{ secrets.AWS_ECR_REGISTRY }}
           export API_ACCESS_KEYS=not_needed
-          docker-compose -f docker-compose.dev.yaml up -d if_miner_develop
+          docker compose -f docker-compose.dev.yaml up -d if_miner_develop
           EOF
 
   discord_alerts:

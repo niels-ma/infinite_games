@@ -80,16 +80,13 @@ class DeleteEvents(AbstractTask):
                 limit=self.page_size,
             )
 
-            deleted_events = response.get("items")
+            deleted_events = response.items
 
             for event in deleted_events:
-                event_id = event["event_id"]
-
-                deleted_at_iso = event["deleted_at"]
-                deleted_at = datetime.fromisoformat(deleted_at_iso.replace("Z", "+00:00"))
+                event_id = event.event_id
 
                 db_deleted_event = await self.db_operations.delete_event(
-                    event_id=event_id, deleted_at=deleted_at
+                    event_id=event_id, deleted_at=event.deleted_at
                 )
 
                 if len(db_deleted_event) > 0:

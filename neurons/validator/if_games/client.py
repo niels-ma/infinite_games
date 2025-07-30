@@ -1,12 +1,18 @@
 import asyncio
 import base64
-import json
 import time
 
 import aiohttp
 import aiohttp.typedefs
 from bittensor_wallet import Wallet
 
+from neurons.validator.models.if_games_client import (
+    GetEventsDeletedResponse,
+    GetEventsResolvedResponse,
+    GetEventsResponse,
+    PostPredictionsRequestBody,
+    PostScoresRequestBody,
+)
 from neurons.validator.utils.config import IfgamesEnvType
 from neurons.validator.utils.git import commit_short_hash
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
@@ -105,9 +111,9 @@ class IfGamesClient:
 
         self.__logger.exception("Http request exception", extra=extra)
 
-    def make_auth_headers(self, body: any) -> dict[str, str]:
+    def make_auth_headers(self, data: str) -> dict[str, str]:
         hot_key = self.__bt_wallet.get_hotkey()
-        signed = base64.b64encode(hot_key.sign(json.dumps(body))).decode("utf-8")
+        signed = base64.b64encode(hot_key.sign(data)).decode("utf-8")
 
         return {
             "Authorization": f"Bearer {signed}",
@@ -125,7 +131,9 @@ class IfGamesClient:
             async with session.get(path) as response:
                 response.raise_for_status()
 
-                return await response.json()
+                data = await response.json()
+
+                return GetEventsResponse.model_validate(data)
 
     async def get_events_deleted(self, deleted_since: str, offset: int, limit: int):
         # Check that all parameters are provided
@@ -138,7 +146,9 @@ class IfGamesClient:
             async with session.get(path) as response:
                 response.raise_for_status()
 
-                return await response.json()
+                data = await response.json()
+
+                return GetEventsDeletedResponse.model_validate(data)
 
     async def get_resolved_events(self, resolved_since: str, offset: int, limit: int):
         # Check that all parameters are provided
@@ -151,36 +161,46 @@ class IfGamesClient:
             async with session.get(path) as response:
                 response.raise_for_status()
 
-                return await response.json()
+                data = await response.json()
 
-    async def post_predictions(self, predictions: dict[any]):
-        if not isinstance(predictions, dict):
+                return GetEventsResolvedResponse.model_validate(data)
+
+    async def post_predictions(self, body: PostPredictionsRequestBody):
+        if not isinstance(body, PostPredictionsRequestBody):
             raise ValueError("Invalid parameter")
 
-        assert len(predictions) > 0
+        assert len(body.submissions) > 0
 
-        auth_headers = self.make_auth_headers(body=predictions)
+        data = body.model_dump_json()
 
-        async with self.create_session(other_headers=auth_headers) as session:
+        auth_headers = self.make_auth_headers(data=data)
+
+        async with self.create_session(
+            other_headers={**auth_headers, "Content-Type": "application/json"}
+        ) as session:
             path = "/api/v1/validators/data"
 
-            async with session.post(path, json=predictions) as response:
+            async with session.post(path, data=data) as response:
                 response.raise_for_status()
 
                 return await response.json()
 
-    async def post_scores(self, scores: dict):
-        if not isinstance(scores, dict):
+    async def post_scores(self, body: PostScoresRequestBody):
+        if not isinstance(body, PostScoresRequestBody):
             raise ValueError("Invalid parameter")
 
-        assert len(scores) > 0
+        assert len(body.results) > 0
 
-        auth_headers = self.make_auth_headers(body=scores)
+        data = body.model_dump_json()
 
-        async with self.create_session(other_headers=auth_headers) as session:
+        auth_headers = self.make_auth_headers(data=data)
+
+        async with self.create_session(
+            other_headers={**auth_headers, "Content-Type": "application/json"}
+        ) as session:
             path = "/api/v1/validators/results"
 
-            async with session.post(path, json=scores) as response:
+            async with session.post(path, data=data) as response:
                 response.raise_for_status()
 
                 return await response.json()

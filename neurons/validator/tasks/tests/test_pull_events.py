@@ -11,8 +11,9 @@ from bittensor_wallet import Wallet
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
-from neurons.validator.models.event import EventStatus
-from neurons.validator.tasks.pull_events import TITLE_SEPARATOR, PullEvents
+from neurons.validator.models.event import EventsModel, EventStatus
+from neurons.validator.models.if_games_client import GetEventsResponse, IfGamesEvent
+from neurons.validator.tasks.pull_events import PullEvents
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 
@@ -70,17 +71,19 @@ class TestPullEventsTask:
     def test_parse_event(self, db_operations_mock, api_client_mock):
         """Test the parse_event method for correctness."""
         # Arrange
-        event = {
-            "event_id": "123",
-            "title": "Test Event?",
-            "description": "This is a test.",
-            "end_date": 1700003600,
-            "created_at": 1699996400,
-            "answer": None,
-            "market_type": "TYpe1",
-            "cutoff": 1699996800,
-            "event_metadata": {"topics": [], "trigger_name": None},
-        }
+        event = IfGamesEvent.model_validate(
+            {
+                "event_id": "123",
+                "title": "Test Event?",
+                "description": "This is a test.",
+                "end_date": 1700003600,
+                "created_at": 1699996400,
+                "answer": None,
+                "market_type": "TYpe1",
+                "cutoff": 1699996800,
+                "event_metadata": {"topics": [], "trigger_name": None},
+            }
+        )
 
         pull_events_task = PullEvents(
             interval_seconds=60.0,
@@ -93,32 +96,40 @@ class TestPullEventsTask:
         parsed_event = pull_events_task.parse_event(event)
 
         # Assert
-        assert parsed_event.unique_event_id == "ifgames-123"  # unique_event_id
-        assert parsed_event.event_id == "123"  # event_id
-        assert parsed_event.market_type == "ifgames"  # truncated market_type
-        assert parsed_event.event_type == "type1"
-        assert (
-            parsed_event.description == "Test Event?" + TITLE_SEPARATOR + "This is a test."
-        )  # description
-        assert parsed_event.outcome is None  # outcome
-        assert parsed_event.status == EventStatus.PENDING  # status
-        assert json.loads(parsed_event.metadata) == event["event_metadata"]  # metadata
-        assert parsed_event.created_at == datetime.fromtimestamp(
-            event["created_at"], tz=timezone.utc
-        )  # created_at
+        assert parsed_event == EventsModel(
+            unique_event_id=f"ifgames-{event.event_id}",
+            event_id=event.event_id,
+            market_type="ifgames",
+            event_type=event.market_type.lower(),
+            registered_date=None,
+            description="Test Event? ==Further Information==: This is a test.",
+            outcome=None,
+            local_updated_at=None,
+            status=EventStatus.PENDING,
+            metadata='{"topics": [], "trigger_name": null}',
+            processed=False,
+            exported=False,
+            created_at=datetime.fromtimestamp(1699996400, tz=timezone.utc),
+            cutoff=datetime.fromtimestamp(1699996800, tz=timezone.utc),
+            resolved_at=None,
+            deleted_at=None,
+        )
 
     def test_parse_event_no_metadata(self, db_operations_mock, api_client_mock):
         # Arrange
-        event = {
-            "event_id": "123",
-            "title": "Test Event?",
-            "description": "This is a test.",
-            "end_date": 1700003600,
-            "created_at": 1699996400,
-            "answer": None,
-            "market_type": "TYpe1",
-            "cutoff": 1699996800,
-        }
+        event = IfGamesEvent.model_validate(
+            {
+                "event_id": "123",
+                "title": "Test Event?",
+                "description": "This is a test.",
+                "end_date": 1700003600,
+                "created_at": 1699996400,
+                "answer": None,
+                "market_type": "TYpe1",
+                "cutoff": 1699996800,
+                "event_metadata": None,
+            }
+        )
 
         pull_events_task = PullEvents(
             interval_seconds=60.0,
@@ -131,13 +142,33 @@ class TestPullEventsTask:
         parsed_event = pull_events_task.parse_event(event)
 
         # Assert
-
-        assert json.loads(parsed_event.metadata) == {}
+        assert parsed_event == EventsModel(
+            unique_event_id=f"ifgames-{event.event_id}",
+            event_id=event.event_id,
+            market_type="ifgames",
+            event_type=event.market_type.lower(),
+            registered_date=None,
+            description="Test Event? ==Further Information==: This is a test.",
+            outcome=None,
+            local_updated_at=None,
+            status=EventStatus.PENDING,
+            metadata="{}",
+            processed=False,
+            exported=False,
+            created_at=datetime.fromtimestamp(1699996400, tz=timezone.utc),
+            cutoff=datetime.fromtimestamp(1699996800, tz=timezone.utc),
+            resolved_at=None,
+            deleted_at=None,
+        )
 
     async def test_run_no_events(self, db_operations_mock, api_client_mock):
         """Test the run method when there are no events."""
         # Arrange
         page_size = 100
+
+        db_operations_mock.get_last_event_from.return_value = None
+
+        api_client_mock.get_events.return_value = GetEventsResponse.model_validate({"items": []})
 
         pull_events_task = PullEvents(
             interval_seconds=60.0,
@@ -145,10 +176,6 @@ class TestPullEventsTask:
             api_client=api_client_mock,
             page_size=page_size,
         )
-
-        db_operations_mock.get_last_event_from.return_value = None
-
-        api_client_mock.get_events.return_value = {"items": []}
 
         # Act
         await pull_events_task.run()
@@ -175,7 +202,7 @@ class TestPullEventsTask:
                     "market_type": "BINARY",
                     "created_at": 1733200000,
                     "end_date": 1733620000,
-                    "answer": None,
+                    "event_metadata": {},
                 },
             ],
         }
@@ -194,7 +221,7 @@ class TestPullEventsTask:
                     "market_type": "POLYMARKET",
                     "created_at": 1733210000,
                     "end_date": 1733621000,
-                    "answer": None,
+                    "event_metadata": {},
                 },
             ],
         }
@@ -256,7 +283,7 @@ class TestPullEventsTask:
                     "market_type": "BINARY",
                     "created_at": 1733200000,
                     "end_date": 1733620000,
-                    "answer": None,
+                    "event_metadata": {},
                 },
             ],
         }
@@ -280,7 +307,7 @@ class TestPullEventsTask:
                     "market_type": "POLYMARKET",
                     "created_at": 1733210000,
                     "end_date": 1733621000,
-                    "answer": None,
+                    "event_metadata": {},
                 },
             ],
         }

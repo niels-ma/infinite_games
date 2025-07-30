@@ -84,18 +84,15 @@ class ResolveEvents(AbstractTask):
                 limit=self.page_size,
             )
 
-            resolved_events = response.get("items")
+            resolved_events = response.items
 
             for event in resolved_events:
-                event_id = event["event_id"]
-                outcome = event["answer"]
-                iso_datetime = event["resolved_at"]
-                resolved_at = datetime.fromisoformat(iso_datetime.replace("Z", "+00:00"))
+                event_id = event.event_id
 
                 db_resolved_event = await self.db_operations.resolve_event(
                     event_id=event_id,
-                    outcome=outcome,
-                    resolved_at=resolved_at,
+                    outcome=event.answer,
+                    resolved_at=event.resolved_at,
                 )
 
                 if len(db_resolved_event) > 0:

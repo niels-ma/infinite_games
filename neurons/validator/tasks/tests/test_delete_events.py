@@ -167,6 +167,8 @@ class TestDeleteEventsTask:
             "items": [
                 {
                     "event_id": events[3].event_id,
+                    "market_type": "MARKET_TYPE",
+                    "created_at": "2012-09-09T20:43:02Z",
                     "deleted_at": "2012-09-10T20:43:02Z",
                 }
             ],
@@ -177,6 +179,8 @@ class TestDeleteEventsTask:
             "items": [
                 {
                     "event_id": events[2].event_id,
+                    "market_type": "MARKET_TYPE",
+                    "created_at": "2012-09-09T20:43:02Z",
                     "deleted_at": "2024-09-11T20:43:02Z",
                 }
             ],
@@ -192,6 +196,8 @@ class TestDeleteEventsTask:
             "items": [
                 {
                     "event_id": events[1].event_id,
+                    "market_type": "MARKET_TYPE",
+                    "created_at": "2012-09-01T20:43:02Z",
                     "deleted_at": "2024-09-05T20:43:02Z",
                 }
             ],

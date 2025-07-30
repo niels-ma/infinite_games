@@ -1,10 +1,11 @@
 import json
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
 from neurons.validator.models.event import EventsModel, EventStatus
+from neurons.validator.models.if_games_client import IfGamesEvent
 from neurons.validator.scheduler.task import AbstractTask
 
 TITLE_SEPARATOR = " ==Further Information==: "
@@ -69,39 +70,36 @@ class PullEvents(AbstractTask):
             response = await self.api_client.get_events(events_from, offset, self.page_size)
 
             # Parse events
-            items = response.get("items")
-            parsed_events_for_insertion = [(self.parse_event(e)) for e in items]
+            events = response.items
+
+            parsed_events_for_insertion = [(self.parse_event(e)) for e in events]
 
             # Batch insert in the db
             if len(parsed_events_for_insertion) > 0:
                 await self.db_operations.upsert_events(events=parsed_events_for_insertion)
 
-            if len(items) < self.page_size:
+            if len(events) < self.page_size:
                 # Break if no more events
                 break
 
             offset += self.page_size
 
-    def parse_event(self, event: any):
-        status = EventStatus.SETTLED if event.get("answer") is not None else EventStatus.PENDING
+    def parse_event(self, event: IfGamesEvent):
+        status = EventStatus.PENDING
         truncated_market_type = "ifgames"
 
-        created_at = datetime.fromtimestamp(event.get("created_at"), tz=timezone.utc)
-        cutoff = datetime.fromtimestamp(event.get("cutoff"), tz=timezone.utc)
-
-        event_type = event.get("market_type", "").lower()
-
-        metadata = event.get("event_metadata", {})
+        event_type = event.market_type.lower()
+        metadata = event.event_metadata or {}
 
         return EventsModel(
-            unique_event_id=f"{truncated_market_type}-{event['event_id']}",
-            event_id=event["event_id"],
+            unique_event_id=f"{truncated_market_type}-{event.event_id}",
+            event_id=event.event_id,
             market_type=truncated_market_type,
             event_type=event_type,
-            description=event.get("title", "") + TITLE_SEPARATOR + event.get("description", ""),
-            outcome=event["answer"],
+            description=event.title + TITLE_SEPARATOR + event.description,
+            outcome=None,
             status=status,
             metadata=json.dumps(metadata),
-            created_at=created_at,
-            cutoff=cutoff,
+            created_at=event.created_at,
+            cutoff=event.cutoff,
         )
