@@ -1,18 +1,16 @@
-import json
 import tempfile
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from bittensor_wallet import Wallet
-from dateutil.parser import isoparse
 from freezegun import freeze_time
 
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
-from neurons.validator.models.backend_models import MinerScore, PostScores
 from neurons.validator.models.event import EventsModel, EventStatus
+from neurons.validator.models.if_games_client import MinerScore, PostScoresRequestBody
 from neurons.validator.models.score import ScoresModel
 from neurons.validator.tasks.export_scores import ExportScores
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
@@ -121,115 +119,84 @@ class TestExportScores:
         )
 
         payload = export_scores_task.prepare_scores_payload(event, [score])
-        # ensure the payload is serializable
-        assert json.loads(json.dumps(payload)) == payload
 
-        assert payload is not None
+        assert isinstance(payload, PostScoresRequestBody)
 
-        assert isinstance(payload, dict)
-        assert "results" in payload
-        results = payload["results"]
-        assert isinstance(results, list)
+        results = payload.results
         assert len(results) == 1
+
         result = results[0]
-        assert result["event_id"] == event.event_id
-        assert result["prediction"] == score.prediction
-        assert result["answer"] == float(event.outcome)
-        assert result["miner_hotkey"] == score.miner_hotkey
-        assert result["miner_uid"] == score.miner_uid
-        assert result["miner_score"] == score.event_score
-        assert result["miner_effective_score"] == score.metagraph_score
-        assert result["validator_hotkey"] == export_scores_task.validator_hotkey
-        assert result["validator_uid"] == export_scores_task.validator_uid
-        assert result["spec_version"] == "1039"
-        assert isoparse(result["registered_date"]) == isoparse(event.registered_date.isoformat())
-        assert isoparse(result["scored_at"]) == isoparse(score.created_at.isoformat())
+        assert isinstance(result, MinerScore)
+
+        assert result == MinerScore(
+            event_id=event.event_id,
+            prediction=score.prediction,
+            answer=float(event.outcome),
+            miner_hotkey=score.miner_hotkey,
+            miner_uid=score.miner_uid,
+            miner_score=score.event_score,
+            miner_effective_score=score.metagraph_score,
+            validator_hotkey=export_scores_task.validator_hotkey,
+            validator_uid=export_scores_task.validator_uid,
+            spec_version="1039",
+            registered_date=event.registered_date,
+            scored_at=score.created_at,
+        )
 
         # score.other_data is not included in the payload; also dates nullified
         score.other_data = None
         score.spec_version = 1040
 
         payload = export_scores_task.prepare_scores_payload(event, [score])
-        assert json.loads(json.dumps(payload)) == payload
-        assert payload is not None
 
-        result = payload["results"][0]
-        assert result["spec_version"] == "1040"
+        result = payload.results[0]
+        assert result.spec_version == "1040"
 
-        payload = export_scores_task.prepare_scores_payload(event, [score])
-        assert json.loads(json.dumps(payload)) == payload
-        assert payload is not None
-
-    def test_prepare_scores_payload_failure(
-        self, export_scores_task: ExportScores, sample_event: EventsModel
-    ):
-        event = sample_event
-        now = datetime(2025, 1, 2, 3, 0, 0, tzinfo=timezone.utc)
-        score = ScoresModel(
-            event_id=event.event_id,
-            miner_uid=1,
-            miner_hotkey="hk1",
-            prediction=0.95,
-            event_score=0.90,
-            metagraph_score=1.0,
-            metadata='{"extra": "data"}',
-            spec_version=1,
-            created_at=now,
-        )
-
-        with patch.object(MinerScore, "__init__", side_effect=Exception("Simulated failure")):
-            payload = export_scores_task.prepare_scores_payload(event, [score])
-            assert payload is None
-            export_scores_task.logger.exception.assert_called()
-
-            exception_calls = export_scores_task.logger.exception.call_args_list
-            assert len(exception_calls) == 1
-            assert exception_calls[0][0][0] == "Failed to parse a score payload."
-            assert exception_calls[0][1]["extra"]["event"] == event.model_dump()
-            assert exception_calls[0][1]["extra"]["score"] == score.model_dump()
-            assert export_scores_task.errors_count == 1
-
-        export_scores_task.logger.exception.reset_mock()
-        export_scores_task.errors_count = 0
-
-        with patch.object(PostScores, "__init__", side_effect=Exception("Simulated failure")):
-            payload = export_scores_task.prepare_scores_payload(event, [score])
-            assert payload is None
-            export_scores_task.logger.exception.assert_called()
-
-            exception_calls = export_scores_task.logger.exception.call_args_list
-            assert len(exception_calls) == 1
-            assert exception_calls[0][0][0] == "Failed to model_dump() scores payload."
-            assert exception_calls[0][1]["extra"]["event_id"] == event.event_id
-            assert export_scores_task.errors_count == 1
-
-    @pytest.mark.asyncio
     async def test_export_scores_to_backend(self, export_scores_task: ExportScores, monkeypatch):
         unit = export_scores_task
         unit.api_client.post_scores = AsyncMock(return_value=True)
 
-        dummy_payload = {"results": [{"event_id": "event_export", "score": 1}]}
+        dummy_payload = PostScoresRequestBody.model_validate(
+            {
+                "results": [
+                    {
+                        "event_id": "event_export",
+                        "prediction": 1,
+                        "answer": 1,
+                        "miner_hotkey": "miner_hotkey",
+                        "miner_uid": 1,
+                        "miner_score": 1,
+                        "miner_effective_score": 1,
+                        "validator_hotkey": "validator_hotkey",
+                        "validator_uid": 2,
+                        "spec_version": "1.3.3",
+                        "registered_date": datetime.now(),
+                        "scored_at": datetime.now(),
+                    }
+                ]
+            }
+        )
+
         await export_scores_task.export_scores_to_backend(dummy_payload)
         export_scores_task.logger.debug.assert_called_with(
             "Exported scores.",
             extra={
-                "event_id": dummy_payload["results"][0]["event_id"],
-                "n_scores": len(dummy_payload["results"]),
+                "event_id": dummy_payload.results[0].event_id,
+                "n_scores": len(dummy_payload.results),
             },
         )
 
         assert export_scores_task.errors_count == 0
         assert unit.api_client.post_scores.call_count == 1
-        assert unit.api_client.post_scores.call_args.kwargs["scores"] == dummy_payload
+        assert unit.api_client.post_scores.call_args.kwargs["body"] == dummy_payload
 
         # mock with side effect
         unit.api_client.post_scores = AsyncMock(side_effect=Exception("Simulated failure"))
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Simulated failure"):
             await export_scores_task.export_scores_to_backend(dummy_payload)
 
         assert unit.api_client.post_scores.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_run_no_scored_events(
         self, export_scores_task: ExportScores, db_operations: DatabaseOperations
     ):
@@ -240,7 +207,6 @@ class TestExportScores:
         export_scores_task.logger.debug.assert_any_call("No peer scored events to export scores.")
         assert export_scores_task.errors_count == 0
 
-    @pytest.mark.asyncio
     async def test_run_no_peer_scores_for_event(
         self,
         export_scores_task: ExportScores,
@@ -278,7 +244,6 @@ class TestExportScores:
         assert unit.logger.debug.call_args_list[1][0][0] == "Export scores task completed."
         assert unit.logger.debug.call_args_list[1][1]["extra"] == {"errors_count": 1}
 
-    @pytest.mark.asyncio
     async def test_run_no_payload(
         self,
         export_scores_task: ExportScores,
@@ -288,6 +253,8 @@ class TestExportScores:
     ):
         unit = export_scores_task
         unit.api_client.post_scores = AsyncMock(return_value=True)
+        unit.db_operations.get_peer_scores_for_export = AsyncMock(return_value=[])
+
         event = sample_event
         await db_operations.upsert_events([event])
 
@@ -301,6 +268,7 @@ class TestExportScores:
         )
 
         await db_operations.insert_peer_scores([score])
+
         await db_client.update(
             "UPDATE scores SET processed = ?",
             [
@@ -310,14 +278,16 @@ class TestExportScores:
         unit.prepare_scores_payload = MagicMock(return_value=None)
 
         await unit.run()
+
+        unit.prepare_scores_payload.assert_not_called()
+
         unit.logger.warning.assert_called_with(
-            "Failed to prepare scores payload.",
+            "No peer scores found for event.",
             extra={"event_id": event.event_id},
         )
         assert unit.logger.debug.call_args_list[1][0][0] == "Export scores task completed."
         assert unit.logger.debug.call_args_list[1][1]["extra"] == {"errors_count": 1}
 
-    @pytest.mark.asyncio
     async def test_run_export_exception(
         self,
         export_scores_task: ExportScores,
@@ -358,7 +328,6 @@ class TestExportScores:
         assert unit.logger.debug.call_args_list[1][0][0] == "Export scores task completed."
         assert unit.logger.debug.call_args_list[1][1]["extra"] == {"errors_count": 1}
 
-    @pytest.mark.asyncio
     async def test_run_e2e(
         self,
         export_scores_task: ExportScores,

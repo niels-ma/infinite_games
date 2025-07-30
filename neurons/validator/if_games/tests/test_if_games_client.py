@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -12,6 +13,13 @@ from bittensor_wallet import Wallet
 from yarl import URL
 
 from neurons.validator.if_games.client import IfGamesClient, IfgamesEnvType
+from neurons.validator.models.if_games_client import (
+    GetEventsDeletedResponse,
+    GetEventsResolvedResponse,
+    GetEventsResponse,
+    PostPredictionsRequestBody,
+    PostScoresRequestBody,
+)
 from neurons.validator.utils.git import commit_short_hash
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 from neurons.validator.version import __version__
@@ -195,8 +203,7 @@ class TestIfGamesClient:
                     ),
                     "market_type": "BINARY",
                     "created_at": 1733200000,
-                    "end_date": 1733620000,
-                    "answer": None,
+                    "event_metadata": {},
                 },
                 {
                     "event_id": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef",
@@ -208,8 +215,7 @@ class TestIfGamesClient:
                     ),
                     "market_type": "POLYMARKET",
                     "created_at": 1733210000,
-                    "end_date": 1733621000,
-                    "answer": None,
+                    "event_metadata": {},
                 },
             ],
         }
@@ -227,7 +233,7 @@ class TestIfGamesClient:
             mocked.assert_called_once()
 
             # Verify the response matches the mock data
-            assert result == mock_response_data
+            assert result == GetEventsResponse.model_validate(mock_response_data)
 
     async def test_get_events_error_raised(self, client_test_env: IfGamesClient):
         # Define mock response data
@@ -276,12 +282,16 @@ class TestIfGamesClient:
             "items": [
                 {
                     "event_id": "21a1578e-705b-4935-9dd1-5138bf279ad0",
+                    "market_type": "MARKET_TYPE",
                     "answer": 0,
+                    "created_at": "2025-01-20T16:10:15Z",
                     "resolved_at": "2025-01-23T16:10:15Z",
                 },
                 {
                     "event_id": "2837d80d-6c90-4b10-9dda-44ee0db617a3",
+                    "market_type": "MARKET_TYPE",
                     "answer": 1,
+                    "created_at": "2025-01-20T16:10:15Z",
                     "resolved_at": "2025-01-23T16:10:15Z",
                 },
             ],
@@ -302,7 +312,7 @@ class TestIfGamesClient:
             mocked.assert_called_once()
 
             # Verify the response matches the mock data
-            assert result == mock_response_data
+            assert result == GetEventsResolvedResponse.model_validate(mock_response_data)
 
     async def test_get_resolved_events_error_raised(self, client_test_env: IfGamesClient):
         # Define mock response data
@@ -353,10 +363,14 @@ class TestIfGamesClient:
             "items": [
                 {
                     "event_id": "21a1578e-705b-4935-9dd1-5138bf279ad0",
+                    "market_type": "MARKET_TYPE",
+                    "created_at": "2025-01-22T16:10:15Z",
                     "deleted_at": "2025-01-23T16:10:15Z",
                 },
                 {
                     "event_id": "2837d80d-6c90-4b10-9dda-44ee0db617a3",
+                    "market_type": "MARKET_TYPE",
+                    "created_at": "2025-01-22T16:10:15Z",
                     "deleted_at": "2025-01-23T16:10:15Z",
                 },
             ],
@@ -377,7 +391,7 @@ class TestIfGamesClient:
             mocked.assert_called_once()
 
             # Verify the response matches the mock data
-            assert result == mock_response_data
+            assert result == GetEventsDeletedResponse.model_validate(mock_response_data)
 
     async def test_get_events_deleted_error_raised(self, client_test_env: IfGamesClient):
         # Define mock response data
@@ -406,7 +420,7 @@ class TestIfGamesClient:
     def test_make_auth_headers(self, client_test_env: IfGamesClient):
         body = {"fake": "body"}
 
-        auth_headers = client_test_env.make_auth_headers(body=body)
+        auth_headers = client_test_env.make_auth_headers(data=json.dumps(body))
 
         encoded = base64.b64encode(json.dumps(body).encode("utf-8")).decode("utf-8")
 
@@ -419,7 +433,29 @@ class TestIfGamesClient:
         # Define mock response data
         mock_response_data = {"fake_response": "ok"}
 
-        predictions = {"submissions": [{"fake_data": "fake_data"}], "events": None}
+        request_body = PostPredictionsRequestBody.model_validate(
+            {
+                "submissions": [
+                    {
+                        "unique_event_id": "unique_event_id",
+                        "provider_type": "event_type",
+                        "prediction": 1,
+                        "interval_start_minutes": 100,
+                        "interval_agg_prediction": 1.0,
+                        "interval_agg_count": 1,
+                        "interval_datetime": datetime.now(),
+                        "miner_hotkey": "miner_hotkey",
+                        "miner_uid": 1,
+                        "validator_hotkey": "validator_hotkey",
+                        "validator_uid": 2,
+                        "submitted_at": datetime.now(),
+                        "title": None,
+                        "outcome": None,
+                    }
+                ],
+                "events": None,
+            }
+        )
 
         with aioresponses() as mocked:
             url_path = "/api/v1/validators/data"
@@ -430,9 +466,11 @@ class TestIfGamesClient:
                 body=json.dumps(mock_response_data).encode("utf-8"),
             )
 
-            result = await client_test_env.post_predictions(predictions=predictions)
+            result = await client_test_env.post_predictions(body=request_body)
 
-            mocked.assert_called_with(url=url_path, method="POST", json=predictions)
+            mocked.assert_called_with(
+                url=url_path, method="POST", data=request_body.model_dump_json()
+            )
 
             # Verify the response matches
             assert result == mock_response_data
@@ -441,7 +479,29 @@ class TestIfGamesClient:
         # Define mock response data
         mock_response_data = {"fake_response": "ok"}
 
-        predictions = {"submissions": [{"fake_data": "fake_data"}], "events": None}
+        request_body = PostPredictionsRequestBody.model_validate(
+            {
+                "submissions": [
+                    {
+                        "unique_event_id": "unique_event_id",
+                        "provider_type": "event_type",
+                        "prediction": 1,
+                        "interval_start_minutes": 100,
+                        "interval_agg_prediction": 1.0,
+                        "interval_agg_count": 1,
+                        "interval_datetime": datetime.now(),
+                        "miner_hotkey": "miner_hotkey",
+                        "miner_uid": 1,
+                        "validator_hotkey": "validator_hotkey",
+                        "validator_uid": 2,
+                        "submitted_at": datetime.now(),
+                        "title": None,
+                        "outcome": None,
+                    }
+                ],
+                "events": None,
+            }
+        )
 
         status_code = 500
 
@@ -455,9 +515,11 @@ class TestIfGamesClient:
             )
 
             with pytest.raises(ClientResponseError) as e:
-                await client_test_env.post_predictions(predictions=predictions)
+                await client_test_env.post_predictions(body=request_body)
 
-            mocked.assert_called_with(url=url_path, method="POST", json=predictions)
+            mocked.assert_called_with(
+                url=url_path, method="POST", data=request_body.model_dump_json()
+            )
 
             # Assert the exception
             assert e.value.status == status_code
@@ -466,7 +528,26 @@ class TestIfGamesClient:
         # Define mock response data
         mock_response_data = {"fake_response": "ok"}
 
-        scores = {"results": [{"fake_data": "fake_data"}]}
+        request_body = PostScoresRequestBody.model_validate(
+            {
+                "results": [
+                    {
+                        "event_id": "event_id",
+                        "prediction": 1,
+                        "answer": 1,
+                        "miner_hotkey": "miner_hotkey",
+                        "miner_uid": 1,
+                        "miner_score": 1,
+                        "miner_effective_score": 1,
+                        "validator_hotkey": "validator_hotkey",
+                        "validator_uid": 2,
+                        "spec_version": "1.3.3",
+                        "registered_date": datetime.now(),
+                        "scored_at": datetime.now(),
+                    }
+                ]
+            }
+        )
 
         with aioresponses() as mocked:
             url_path = "/api/v1/validators/results"
@@ -477,9 +558,11 @@ class TestIfGamesClient:
                 body=json.dumps(mock_response_data).encode("utf-8"),
             )
 
-            result = await client_test_env.post_scores(scores=scores)
+            result = await client_test_env.post_scores(body=request_body)
 
-            mocked.assert_called_with(url=url_path, method="POST", json=scores)
+            mocked.assert_called_with(
+                url=url_path, method="POST", data=request_body.model_dump_json()
+            )
 
             # Verify the response matches
             assert result == mock_response_data
@@ -488,7 +571,26 @@ class TestIfGamesClient:
         # Define mock response data
         mock_response_data = {"fake_response": "ok"}
 
-        scores = {"results": [{"fake_data": "fake_data"}]}
+        request_body = PostScoresRequestBody.model_validate(
+            {
+                "results": [
+                    {
+                        "event_id": "event_id",
+                        "prediction": 1,
+                        "answer": 1,
+                        "miner_hotkey": "miner_hotkey",
+                        "miner_uid": 1,
+                        "miner_score": 1,
+                        "miner_effective_score": 1,
+                        "validator_hotkey": "validator_hotkey",
+                        "validator_uid": 2,
+                        "spec_version": "1.3.3",
+                        "registered_date": datetime.now(),
+                        "scored_at": datetime.now(),
+                    }
+                ]
+            }
+        )
 
         status_code = 500
 
@@ -502,12 +604,10 @@ class TestIfGamesClient:
             )
 
             with pytest.raises(ClientResponseError) as e:
-                await client_test_env.post_scores(scores=scores)
+                await client_test_env.post_scores(body=request_body)
 
             mocked.assert_called_with(
-                url=url_path,
-                method="POST",
-                json=scores,
+                url=url_path, method="POST", data=request_body.model_dump_json()
             )
 
             # Assert the exception

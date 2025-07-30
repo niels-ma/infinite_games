@@ -1,5 +1,6 @@
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
+from neurons.validator.models.if_games_client import MinerPrediction, PostPredictionsRequestBody
 from neurons.validator.scheduler.task import AbstractTask
 from neurons.validator.utils.common.interval import (
     get_interval_iso_datetime,
@@ -83,9 +84,11 @@ class ExportPredictions(AbstractTask):
                 break
 
             # Export predictions
-            parsed_predictions = self.parse_predictions_for_exporting(predictions=predictions)
+            parsed_predictions = self.parse_predictions_for_exporting(
+                predictions_db_data=predictions
+            )
 
-            await self.api_client.post_predictions(predictions=parsed_predictions)
+            await self.api_client.post_predictions(body=parsed_predictions)
 
             # Mark predictions as exported
             ids = [prediction[0] for prediction in predictions]
@@ -94,37 +97,37 @@ class ExportPredictions(AbstractTask):
             if len(predictions) < self.batch_size:
                 break
 
-    def parse_predictions_for_exporting(self, predictions: list[tuple[any]]):
+    def parse_predictions_for_exporting(self, predictions_db_data: list[tuple[any]]):
         submissions = []
 
-        for prediction in predictions:
-            unique_event_id = prediction[1]
-            miner_uid = prediction[2]
-            miner_hotkey = prediction[3]
-            event_type = prediction[4]
-            predicted_outcome = prediction[5]
-            interval_start_minutes = prediction[6]
-            interval_agg_prediction = prediction[7]
-            interval_count = prediction[8]
-            submitted_at = prediction[9]
+        for prediction_data in predictions_db_data:
+            unique_event_id = prediction_data[1]
+            miner_uid = prediction_data[2]
+            miner_hotkey = prediction_data[3]
+            event_type = prediction_data[4]
+            predicted_outcome = prediction_data[5]
+            interval_start_minutes = prediction_data[6]
+            interval_agg_prediction = prediction_data[7]
+            interval_count = prediction_data[8]
+            submitted_at = prediction_data[9]
 
-            submission = {
-                "unique_event_id": unique_event_id,
-                "provider_type": event_type,
-                "prediction": predicted_outcome,
-                "interval_start_minutes": interval_start_minutes,
-                "interval_agg_prediction": interval_agg_prediction,
-                "interval_agg_count": interval_count,
-                "interval_datetime": get_interval_iso_datetime(interval_start_minutes),
-                "miner_hotkey": miner_hotkey,
-                "miner_uid": miner_uid,
-                "validator_hotkey": self.validator_hotkey,
-                "validator_uid": self.validator_uid,
-                "title": None,
-                "outcome": None,
-                "submitted_at": submitted_at,
-            }
+            prediction = MinerPrediction(
+                unique_event_id=unique_event_id,
+                provider_type=event_type,
+                prediction=predicted_outcome,
+                interval_start_minutes=interval_start_minutes,
+                interval_agg_prediction=interval_agg_prediction,
+                interval_agg_count=interval_count,
+                interval_datetime=get_interval_iso_datetime(interval_start_minutes),
+                miner_hotkey=miner_hotkey,
+                miner_uid=miner_uid,
+                validator_hotkey=self.validator_hotkey,
+                validator_uid=self.validator_uid,
+                submitted_at=submitted_at,
+                title=None,
+                outcome=None,
+            )
 
-            submissions.append(submission)
+            submissions.append(prediction)
 
-        return {"submissions": submissions, "events": None}
+        return PostPredictionsRequestBody(submissions=submissions)

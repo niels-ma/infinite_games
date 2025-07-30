@@ -31,14 +31,15 @@ Before attempting to register on mainnet, we strongly recommend that you run a v
 
 # System Requirements
 
-- Requires at least **Python 3.10.**
-- Requires at least **SQLite 3.37.**
+- Requires at least **Python 3.11.**
+- Requires at least **SQLite 3.40.**
 
-Below are the computational prerequisites for validators.
+Validators are recommended to have at least:
+- 16 GB of RAM  
+- 2 CPUs  
+- 32 GB of disk space with minimum 10 000 IOPS and 200 MB/s throughput
 
-- Validators are recommended to have at least 16GB of RAM and 2CPUs. We expect daily requirements to be lower but this would provide sufficient margin.
-
-As we optimize the fetching and processing of events these requirements may evolve.
+We expect daily requirements to be lower but this would provide sufficient margin. As we optimize the fetching and processing of events these requirements may evolve.
 
 # Getting Started
 

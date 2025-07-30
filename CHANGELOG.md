@@ -1,5 +1,9 @@
 # Release Notes
 
+## [1.5.7] - 2025-07-29
+- **API Client**: Added API client data validation
+- **Bittensor Upgrade**: Upgraded to Bittensor version 9.8.3
+
 ## [1.5.6] - 2025-07-22
 - **Logger**: Added logger level command options
 - **Bittensor Upgrade**: Upgraded to Bittensor version 9.8.2

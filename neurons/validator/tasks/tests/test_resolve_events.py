@@ -287,7 +287,9 @@ class TestResolveEventsTask:
             "items": [
                 {
                     "event_id": events[3].event_id,
+                    "market_type": "MARKET_TYPE",
                     "answer": 1,
+                    "created_at": "2012-09-01T20:43:02Z",
                     "resolved_at": "2012-09-10T20:43:02Z",
                 }
             ],
@@ -298,7 +300,9 @@ class TestResolveEventsTask:
             "items": [
                 {
                     "event_id": events[2].event_id,
+                    "market_type": "MARKET_TYPE",
                     "answer": 0,
+                    "created_at": "2012-09-01T20:43:02Z",
                     "resolved_at": "2024-09-11T20:43:02Z",
                 }
             ],
@@ -314,7 +318,9 @@ class TestResolveEventsTask:
             "items": [
                 {
                     "event_id": events[1].event_id,
+                    "market_type": "MARKET_TYPE",
                     "answer": 1,
+                    "created_at": "2012-09-01T20:43:02Z",
                     "resolved_at": "2024-09-10T20:43:02Z",
                 }
             ],
