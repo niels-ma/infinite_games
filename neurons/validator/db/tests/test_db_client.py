@@ -15,7 +15,7 @@ class TestDbClient:
         return MagicMock(spec=InfiniteGamesLogger)
 
     @pytest.fixture(scope="function")
-    async def db_client(self, mocked_logger: MagicMock) -> DatabaseClient:
+    async def db_client(self, mocked_logger: MagicMock):
         temp_db = tempfile.NamedTemporaryFile(delete=False)
         db_path = temp_db.name
         temp_db.close()
@@ -29,7 +29,7 @@ class TestDbClient:
             """
         )
 
-        return client
+        yield client
 
     async def test_insert(self, db_client: DatabaseClient, mocked_logger: MagicMock):
         sql = "INSERT INTO test_table (name) VALUES (?) returning name"

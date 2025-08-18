@@ -286,6 +286,7 @@ class TestIfGamesClient:
                     "answer": 0,
                     "created_at": "2025-01-20T16:10:15Z",
                     "resolved_at": "2025-01-23T16:10:15Z",
+                    "forecasts": {},
                 },
                 {
                     "event_id": "2837d80d-6c90-4b10-9dda-44ee0db617a3",
@@ -293,6 +294,7 @@ class TestIfGamesClient:
                     "answer": 1,
                     "created_at": "2025-01-20T16:10:15Z",
                     "resolved_at": "2025-01-23T16:10:15Z",
+                    "forecasts": {"2025-01-20T16:10:15Z": 0.0001},
                 },
             ],
         }
@@ -313,6 +315,9 @@ class TestIfGamesClient:
 
             # Verify the response matches the mock data
             assert result == GetEventsResolvedResponse.model_validate(mock_response_data)
+
+            assert len(result.items[0].forecasts) == 0
+            assert len(result.items[1].forecasts) == 1
 
     async def test_get_resolved_events_error_raised(self, client_test_env: IfGamesClient):
         # Define mock response data

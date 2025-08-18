@@ -93,6 +93,7 @@ class ResolveEvents(AbstractTask):
                     event_id=event_id,
                     outcome=event.answer,
                     resolved_at=event.resolved_at,
+                    forecasts=str(event.forecasts),
                 )
 
                 if len(db_resolved_event) > 0:

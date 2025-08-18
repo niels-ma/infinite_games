@@ -1,6 +1,5 @@
 import asyncio
 import json
-import tempfile
 from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
@@ -21,20 +20,6 @@ from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 
 class TestQueryMiners:
-    @pytest.fixture(scope="function")
-    async def db_client(self):
-        temp_db = tempfile.NamedTemporaryFile(delete=False)
-        db_path = temp_db.name
-        temp_db.close()
-
-        logger = MagicMock(spec=InfiniteGamesLogger)
-
-        db_client = DatabaseClient(db_path, logger)
-
-        await db_client.migrate()
-
-        return db_client
-
     @pytest.fixture
     def db_operations(self, db_client: DatabaseClient):
         logger = MagicMock(spec=InfiniteGamesLogger)
@@ -334,7 +319,10 @@ class TestQueryMiners:
     async def test_query_neurons(self, query_miners_task: QueryMiners):
         synapse = EventPredictionSynapse(events={})
 
-        axons_by_uid = {"1": MagicMock(spec=AxonInfo), "50": MagicMock(spec=AxonInfo)}
+        axons_by_uid = {
+            "1": MagicMock(spec=AxonInfo, hotkey="hotkey_1"),
+            "50": MagicMock(spec=AxonInfo, hotkey="hotkey_50"),
+        }
 
         query_miners_task.dendrite.forward = AsyncMock(return_value=[synapse, synapse])
 

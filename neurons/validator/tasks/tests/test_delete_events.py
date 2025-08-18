@@ -1,5 +1,4 @@
 import json
-import tempfile
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -37,20 +36,6 @@ class TestDeleteEventsTask:
         bt_wallet.get_hotkey = MagicMock(return_value=hotkey_mock)
 
         return bt_wallet
-
-    @pytest.fixture(scope="function")
-    async def db_client(self):
-        temp_db = tempfile.NamedTemporaryFile(delete=False)
-        db_path = temp_db.name
-        temp_db.close()
-
-        logger = MagicMock(spec=InfiniteGamesLogger)
-
-        db_client = DatabaseClient(db_path, logger)
-
-        await db_client.migrate()
-
-        return db_client
 
     @pytest.fixture
     def db_operations(self, db_client: DatabaseClient):

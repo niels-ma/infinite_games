@@ -22,6 +22,9 @@ class ScoresModel(BaseModel):
     spec_version: int
     processed: Optional[bool] = False
     exported: Optional[bool] = False
+    alternative_metagraph_score: Optional[float] = None
+    alternative_other_data: Optional[str] = None
+    alternative_processed: Optional[bool] = False
 
     @property
     def primary_key(self):

@@ -32,7 +32,7 @@ async def get_event(event_id: str, request: ApiRequest) -> GetEventResponse:
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    return event
+    return GetEventResponse.model_validate(event.model_dump())
 
 
 @router.get(

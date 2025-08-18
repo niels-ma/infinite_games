@@ -263,6 +263,20 @@ class QueryMiners(AbstractTask):
         axons_uids = list(axons_by_uid.keys())
 
         for uid, response in zip(axons_uids, responses):
+            if not response.is_success:
+                self.logger.debug(
+                    "Miner response error",
+                    extra={
+                        "miner_uid": uid,
+                        "miner_hotkey": axons_by_uid[uid].hotkey,
+                        "is_success": response.is_success,
+                        "axon_status_code": response.axon.status_code,
+                        "axon_status_message": response.axon.status_message,
+                        "dendrite_status_code": response.dendrite.status_code,
+                        "dendrite_status_message": response.dendrite.status_message,
+                    },
+                )
+
             responses_by_uid[uid] = response
 
         return responses_by_uid

@@ -21,20 +21,17 @@ def upgrade() -> None:
     op.execute(
         """
             ALTER TABLE events DROP COLUMN starts
-
         """
     )
 
     op.execute(
         """
             ALTER TABLE events DROP COLUMN resolve_date
-
         """
     )
 
     op.execute(
         """
             ALTER TABLE events DROP COLUMN end_date
-
         """
     )

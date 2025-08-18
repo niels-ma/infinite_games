@@ -1,4 +1,3 @@
-import tempfile
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,26 +9,11 @@ from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 
-@pytest.fixture(scope="function")
-async def test_db_client():
-    temp_db = tempfile.NamedTemporaryFile(delete=False)
-    db_path = temp_db.name
-    temp_db.close()
-
-    logger = MagicMock(spec=InfiniteGamesLogger)
-
-    db_client = DatabaseClient(db_path, logger)
-
-    await db_client.migrate()
-
-    return db_client
-
-
 @pytest.fixture
-async def test_db_operations(test_db_client: DatabaseClient):
+async def test_db_operations(db_client: DatabaseClient):
     logger = MagicMock(spec=InfiniteGamesLogger)
 
-    db_operations = DatabaseOperations(db_client=test_db_client, logger=logger)
+    db_operations = DatabaseOperations(db_client=db_client, logger=logger)
 
     return db_operations
 

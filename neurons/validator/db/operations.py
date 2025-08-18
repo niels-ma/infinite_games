@@ -384,7 +384,7 @@ class DatabaseOperations:
         )
 
     async def resolve_event(
-        self, event_id: str, outcome: str, resolved_at: str
+        self, event_id: str, outcome: str, resolved_at: str, forecasts: str
     ) -> Iterable[tuple[str]]:
         return await self.__db_client.update(
             """
@@ -394,6 +394,7 @@ class DatabaseOperations:
                     status = ?,
                     outcome = ?,
                     resolved_at = ?,
+                    forecasts = ?,
                     local_updated_at = CURRENT_TIMESTAMP
                 WHERE
                     event_id = ?
@@ -401,7 +402,7 @@ class DatabaseOperations:
                 RETURNING
                     event_id
             """,
-            [EventStatus.SETTLED, outcome, resolved_at, event_id, EventStatus.PENDING],
+            [EventStatus.SETTLED, outcome, resolved_at, forecasts, event_id, EventStatus.PENDING],
         )
 
     async def upsert_miners(self, miners: list[list[any]]) -> None:
@@ -704,6 +705,40 @@ class DatabaseOperations:
                     MIN(ROWID) AS min_row_id
                 FROM scores
                 WHERE processed = false
+                GROUP BY event_id
+                ORDER BY min_row_id ASC
+                LIMIT ?
+            """,
+            use_row_factory=True,
+            parameters=[
+                max_events,
+            ],
+        )
+
+        events = []
+        for row in rows:
+            try:
+                event = dict(row)
+                events.append(event)
+            except Exception:
+                self.logger.exception("Error parsing event", extra={"row": row})
+        return events
+
+    async def get_events_for_alternative_metagraph_scoring(
+        self, max_events: int = 1000
+    ) -> list[dict]:
+        """
+        Returns all events that were recently peer scored and not processed.
+        These events need to be ordered by row_id for the moving average calculation.
+        """
+
+        rows = await self.__db_client.many(
+            """
+                SELECT
+                    event_id,
+                    MIN(ROWID) AS min_row_id
+                FROM scores
+                WHERE alternative_processed = false
                 GROUP BY event_id
                 ORDER BY min_row_id ASC
                 LIMIT ?
