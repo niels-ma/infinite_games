@@ -3,6 +3,7 @@
     "acled",
     "ainit",
     "aioresponses",
+    "aiosqlitepool",
     "allclose",
     "ASGI",
     "asyncio",

@@ -1,6 +1,5 @@
 import asyncio
 import json
-import tempfile
 from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, MagicMock
 
@@ -18,20 +17,6 @@ from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 
 class TestDbOperationsPart1(TestDbOperationsBase):
-    @pytest.fixture(scope="function")
-    async def db_client(self):
-        temp_db = tempfile.NamedTemporaryFile(delete=False)
-        db_path = temp_db.name
-        temp_db.close()
-
-        logger = MagicMock(spec=InfiniteGamesLogger)
-
-        db_client = DatabaseClient(db_path, logger)
-
-        await db_client.migrate()
-
-        return db_client
-
     @pytest.fixture
     async def db_operations(self, db_client: DatabaseClient):
         logger = MagicMock(spec=InfiniteGamesLogger)
@@ -659,9 +644,11 @@ class TestDbOperationsPart1(TestDbOperationsBase):
 
         # Resolve events 1 and 3
         await db_operations.resolve_event(
-            event_id="event1", outcome=1, resolved_at=current_time_iso
+            event_id="event1", outcome=1, resolved_at=current_time_iso, forecasts="{}"
         )
-        await db_operations.resolve_event(event_id="event3", outcome=1, resolved_at=future_time_iso)
+        await db_operations.resolve_event(
+            event_id="event3", outcome=1, resolved_at=future_time_iso, forecasts="{}"
+        )
 
         result = await db_operations.get_events_last_resolved_at()
 
@@ -1155,11 +1142,12 @@ class TestDbOperationsPart1(TestDbOperationsBase):
             event_id=event_id,
             outcome=outcome,
             resolved_at=resolved_at,
+            forecasts='{"2000-12-02T14:30:00Z": 0.01}',
         )
 
         result = await db_client.many(
             """
-                SELECT event_id, status, outcome, resolved_at, local_updated_at
+                SELECT event_id, status, outcome, resolved_at, forecasts, local_updated_at
                 FROM events
                 ORDER BY event_id
             """
@@ -1170,12 +1158,15 @@ class TestDbOperationsPart1(TestDbOperationsBase):
         assert result[0][1] == str(EventStatus.SETTLED.value)
         assert result[0][2] == str(outcome)
         assert result[0][3] == resolved_at
+        assert result[0][4] == '{"2000-12-02T14:30:00Z": 0.01}'
+        # Check that local_updated_at is a string
+        assert isinstance(result[0][5], str)
+
         # the other two events were not resolved now
         assert result[1][1] == str(EventStatus.DISCARDED.value)
         assert result[1][3] is None
         assert result[2][1] == str(EventStatus.SETTLED.value)
         assert result[2][3] == prev_resolved_at
-        assert isinstance(result[0][4], str)
 
     async def test_resolve_event_not_resolving_again(
         self, db_client: DatabaseClient, db_operations: DatabaseOperations
@@ -1205,6 +1196,7 @@ class TestDbOperationsPart1(TestDbOperationsBase):
             event_id=event_id,
             outcome=outcome,
             resolved_at=resolved_at,
+            forecasts='{"2000-12-02T14:30:00Z": 0.01}',
         )
 
         outcome_2 = 0
@@ -1214,6 +1206,7 @@ class TestDbOperationsPart1(TestDbOperationsBase):
             event_id=event_id,
             outcome=outcome_2,
             resolved_at=resolved_at_2,
+            forecasts="{}",
         )
 
         result = await db_client.many(
@@ -1243,6 +1236,7 @@ class TestDbOperationsPart1(TestDbOperationsBase):
                 metadata='{"key": "value"}',
                 created_at="2000-12-02T14:30:00+00:00",
                 cutoff="2000-01-01T14:30:00+00:00",
+                forecasts='{"2000-12-02T14:30:00Z": 0.01}',
             ),
             EventsModel(
                 unique_event_id="unique2",

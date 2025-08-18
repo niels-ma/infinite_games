@@ -35,6 +35,7 @@ class EventsModel(BaseModel):
     resolved_at: Optional[datetime] = None
     event_type: Optional[str] = None
     deleted_at: Optional[datetime] = None
+    forecasts: Optional[str] = "{}"
 
     @property
     def primary_key(self):

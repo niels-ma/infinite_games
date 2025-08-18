@@ -22,6 +22,7 @@ from neurons.validator.tasks.query_miners import QueryMiners
 from neurons.validator.tasks.resolve_events import ResolveEvents
 from neurons.validator.tasks.set_weights import SetWeights
 from neurons.validator.tasks.train_cp_model import TrainCommunityPredictionModel
+from neurons.validator.utils.common.event_loop import measure_event_loop_lag
 from neurons.validator.utils.config import get_config
 from neurons.validator.utils.env import ENVIRONMENT_VARIABLES, assert_requirements
 from neurons.validator.utils.logger.logger import (
@@ -190,6 +191,13 @@ async def main():
     # Start scheduler
     scheduler_task = asyncio.create_task(scheduler.start())
 
+    # Measure event loop lag
+    loop_lag_task = asyncio.create_task(
+        measure_event_loop_lag(
+            measuring_frequency_seconds=0.5, lag_threshold_seconds=1.0, logger=logger
+        )
+    )
+
     logger.info(
         "Validator started",
         extra={
@@ -204,4 +212,4 @@ async def main():
         },
     )
 
-    await asyncio.gather(scheduler_task, validator_api_task)
+    await asyncio.gather(scheduler_task, validator_api_task, loop_lag_task)

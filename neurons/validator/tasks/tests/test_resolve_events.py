@@ -1,5 +1,4 @@
 import json
-import tempfile
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -38,20 +37,6 @@ class TestResolveEventsTask:
         bt_wallet.get_hotkey = MagicMock(return_value=hotkey_mock)
 
         return bt_wallet
-
-    @pytest.fixture(scope="function")
-    async def db_client(self):
-        temp_db = tempfile.NamedTemporaryFile(delete=False)
-        db_path = temp_db.name
-        temp_db.close()
-
-        logger = MagicMock(spec=InfiniteGamesLogger)
-
-        db_client = DatabaseClient(db_path, logger)
-
-        await db_client.migrate()
-
-        return db_client
 
     @pytest.fixture
     def db_operations(self, db_client: DatabaseClient):
@@ -138,10 +123,13 @@ class TestResolveEventsTask:
         event_2_resolved_at = (current_time + timedelta(seconds=100)).isoformat()
 
         await db_operations.resolve_event(
-            event_id=events[0].event_id, outcome=1, resolved_at=event_1_resolved_at
+            event_id=events[0].event_id, outcome=1, resolved_at=event_1_resolved_at, forecasts="{}"
         )
         await db_operations.resolve_event(
-            event_id=events[1].event_id, outcome=1, resolved_at=event_2_resolved_at
+            event_id=events[1].event_id,
+            outcome=1,
+            resolved_at=event_2_resolved_at,
+            forecasts=str({"2000-12-02T14:30:00Z": 0.98}),
         )
 
         api_response = {"count": 0, "items": []}
@@ -291,6 +279,7 @@ class TestResolveEventsTask:
                     "answer": 1,
                     "created_at": "2012-09-01T20:43:02Z",
                     "resolved_at": "2012-09-10T20:43:02Z",
+                    "forecasts": {"2012-09-01T20:43:02Z": 0.07, "2012-09-01T22:43:02Z": 0.51},
                 }
             ],
         }
@@ -304,6 +293,7 @@ class TestResolveEventsTask:
                     "answer": 0,
                     "created_at": "2012-09-01T20:43:02Z",
                     "resolved_at": "2024-09-11T20:43:02Z",
+                    "forecasts": {},
                 }
             ],
         }
@@ -322,6 +312,7 @@ class TestResolveEventsTask:
                     "answer": 1,
                     "created_at": "2012-09-01T20:43:02Z",
                     "resolved_at": "2024-09-10T20:43:02Z",
+                    "forecasts": {"2012-09-01T20:43:02Z": 0.07, "2012-09-01T22:43:02Z": 0.51},
                 }
             ],
         }
@@ -381,7 +372,7 @@ class TestResolveEventsTask:
             # Assert
             response = await db_client.many(
                 """
-                    SELECT status, outcome, resolved_at from events
+                    SELECT status, outcome, resolved_at, forecasts from events
                 """
             )
 
@@ -397,13 +388,19 @@ class TestResolveEventsTask:
             assert response[3][1] == "1"
             assert response[3][2] == "2012-09-10 20:43:02+00:00"
 
+            # Check forecasts
+            assert response[0][3] == "{}"
+            assert response[1][3] == "{}"
+            assert response[2][3] == "{}"
+            assert response[3][3] == "{'2012-09-01T20:43:02Z': 0.07, '2012-09-01T22:43:02Z': 0.51}"
+
             # Act run again
             await resolve_events_task.run()
 
             # Assert
             response = await db_client.many(
                 """
-                    SELECT status, outcome, resolved_at from events
+                    SELECT status, outcome, resolved_at, forecasts from events
                 """
             )
 
@@ -416,3 +413,9 @@ class TestResolveEventsTask:
             # Event 2 is settled now
             assert response[1][1] == "1"
             assert response[1][2] == "2024-09-10 20:43:02+00:00"
+
+            # Check forecasts
+            assert response[0][3] == "{}"
+            assert response[1][3] == "{'2012-09-01T20:43:02Z': 0.07, '2012-09-01T22:43:02Z': 0.51}"
+            assert response[2][3] == "{}"
+            assert response[3][3] == "{'2012-09-01T20:43:02Z': 0.07, '2012-09-01T22:43:02Z': 0.51}"

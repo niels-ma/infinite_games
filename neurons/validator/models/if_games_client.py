@@ -41,6 +41,8 @@ class IfGamesEventResolved(BaseModel):
     created_at: datetime
     answer: int = Field(..., ge=0, le=1)
     resolved_at: datetime
+    # No need to type as datetime since is converted to string to persist in the DB
+    forecasts: dict[str, float]
 
 
 class GetEventsResolvedResponse(BaseModel):

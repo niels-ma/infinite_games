@@ -28,6 +28,7 @@ class TestValidatorMain:
             patch("neurons.validator.main.IfGamesClient", spec=True) as MockIfGamesClient,
             patch("neurons.validator.main.DatabaseClient", spec=True) as MockDatabaseClient,
             patch("neurons.validator.main.TasksScheduler") as MockTasksScheduler,
+            patch("neurons.validator.main.measure_event_loop_lag") as mock_measure_event_loop_lag,
             patch("neurons.validator.main.logger", spec=True) as mock_logger,
             patch("neurons.validator.main.ExportPredictions", spec=True),
             patch("neurons.validator.main.PeerScoring", spec=True),
@@ -95,6 +96,9 @@ class TestValidatorMain:
 
             # Verify API was started
             mock_api.start.assert_awaited_once()
+
+            # Verify event loop lag is measured
+            mock_measure_event_loop_lag.assert_awaited_once()
 
             # Verify tasks
             assert mock_scheduler.add.call_count == 12

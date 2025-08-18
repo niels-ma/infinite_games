@@ -1,6 +1,5 @@
 import base64
 import pickle
-import tempfile
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -13,21 +12,6 @@ from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.models.score import ScoresModel
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
-
-
-@pytest.fixture(scope="function")
-async def db_client():
-    temp_db = tempfile.NamedTemporaryFile(delete=False)
-    db_path = temp_db.name
-    temp_db.close()
-
-    logger = MagicMock(spec=InfiniteGamesLogger)
-
-    db_client = DatabaseClient(db_path, logger)
-
-    await db_client.migrate()
-
-    return db_client
 
 
 @pytest.fixture

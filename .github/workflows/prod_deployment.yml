@@ -23,11 +23,13 @@ jobs:
         env:
           SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         run: |
+          set -euo pipefail
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_PROD_VALIDATOR_IP }} >> ~/.ssh/known_hosts
           ssh-keyscan github.com >> ~/.ssh/known_hosts
           ssh-agent -a $SSH_AUTH_SOCK > /dev/null
           ssh-add - <<< "${{ secrets.SSH_STAGE_PRIVATE_KEY }}"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_PROD_VALIDATOR_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
+          set -euo pipefail
           cd /root/if-games-validator
           git pull --rebase
           source venv/bin/activate
