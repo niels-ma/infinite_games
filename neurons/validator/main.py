@@ -2,13 +2,17 @@ import asyncio
 import sqlite3
 import sys
 
-from bittensor import Dendrite, Subtensor
+from bittensor import AsyncSubtensor, Dendrite
 from bittensor_wallet import Wallet
 
 from neurons.validator.api.api import API
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
+from neurons.validator.sandbox.alternative_scoring.cluster_selector import ClusterSelector
+from neurons.validator.sandbox.alternative_scoring.metagraph_scoring_alternative import (
+    MetagraphScoringAlternative,
+)
 from neurons.validator.scheduler.tasks_scheduler import TasksScheduler
 from neurons.validator.tasks.db_cleaner import DbCleaner
 from neurons.validator.tasks.db_vacuum import DbVacuum
@@ -51,8 +55,8 @@ async def main():
     bt_network = config.get("subtensor").get("network")
     bt_wallet = Wallet(config=config)
     bt_dendrite = Dendrite(wallet=bt_wallet)
-    bt_subtensor = Subtensor(config=config)
-    bt_metagraph = bt_subtensor.metagraph(netuid=bt_netuid, lite=True)
+    bt_subtensor = AsyncSubtensor(config=config)
+    bt_metagraph = await bt_subtensor.metagraph(netuid=bt_netuid, lite=True)
 
     validator_hotkey = bt_wallet.hotkey.ss58_address
     validator_uid = bt_metagraph.hotkeys.index(validator_hotkey)
@@ -131,6 +135,14 @@ async def main():
         logger=logger,
     )
 
+    metagraph_scoring_alternative_task = MetagraphScoringAlternative(
+        interval_seconds=1799.0,
+        cluster_selector_cls=ClusterSelector,
+        db_operations=db_operations,
+        metagraph=bt_metagraph,
+        logger=logger,
+    )
+
     export_scores_task = ExportScores(
         interval_seconds=373.0,
         page_size=500,
@@ -179,6 +191,7 @@ async def main():
     scheduler.add(task=export_predictions_task)
     scheduler.add(task=peer_scoring_task)
     scheduler.add(task=metagraph_scoring_task)
+    scheduler.add(task=metagraph_scoring_alternative_task)
     scheduler.add(task=export_scores_task)
     scheduler.add(task=set_weights_task)
     scheduler.add(task=train_cp_model_task)

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 
 from neurons.validator.db.operations import DatabaseOperations
@@ -93,7 +94,7 @@ class ResolveEvents(AbstractTask):
                     event_id=event_id,
                     outcome=event.answer,
                     resolved_at=event.resolved_at,
-                    forecasts=str(event.forecasts),
+                    forecasts=json.dumps(event.forecasts),
                 )
 
                 if len(db_resolved_event) > 0:

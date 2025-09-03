@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import pickle
@@ -136,7 +137,8 @@ class TrainCommunityPredictionModel(AbstractTask):
             wide[c] = wide[c].fillna(row_means)
         return wide
 
-    def train_model(self, wide_df: pd.DataFrame) -> LogisticRegression:
+    @staticmethod
+    def train_model(wide_df: pd.DataFrame) -> LogisticRegression:
         """
         Train the model using the wide df.
         """
@@ -155,14 +157,6 @@ class TrainCommunityPredictionModel(AbstractTask):
         )
 
         lr_model.fit(X, y)
-
-        self.logger.debug(
-            "Model trained successfully.",
-            extra={
-                "coefficients": lr_model.coef_.tolist(),
-                "intercept": lr_model.intercept_.tolist(),
-            },
-        )
 
         return lr_model
 
@@ -192,7 +186,15 @@ class TrainCommunityPredictionModel(AbstractTask):
 
         wide_df = self.pivot_top_n(df, n=TOP_N_RANKS[self.env], train=True)
 
-        lr_model = self.train_model(wide_df)
+        lr_model = await asyncio.to_thread(self.train_model, wide_df)
+
+        self.logger.debug(
+            "Model trained successfully.",
+            extra={
+                "coefficients": lr_model.coef_.tolist(),
+                "intercept": lr_model.intercept_.tolist(),
+            },
+        )
 
         await self.save_model(lr_model)
 

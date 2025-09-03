@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY
 
@@ -9,7 +10,7 @@ from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.db.tests.test_utils import TestDbOperationsBase
 from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.models.reasoning import ReasoningModel
-from neurons.validator.models.score import ScoresModel
+from neurons.validator.models.score import AlternativeMetagraphScore, ScoresModel
 
 
 class TestDbOperationsPart3(TestDbOperationsBase):
@@ -774,4 +775,431 @@ class TestDbOperationsPart3(TestDbOperationsBase):
         assert remaining == [
             ("event1",),
             ("event2",),
+        ]
+
+    async def test_get_predictions_ranked(self, db_operations: DatabaseOperations):
+        events = [
+            EventsModel(
+                unique_event_id="event1",
+                event_id="event1",
+                market_type="market_type1",
+                event_type="type1",
+                description="First event",
+                outcome="1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value1"}',
+                resolved_at="2024-12-30T14:30:00+00:00",
+            ),
+            EventsModel(
+                unique_event_id="event2",
+                event_id="event2",
+                market_type="market_type2",
+                event_type="type2",
+                description="Second event",
+                outcome="0",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value2"}',
+                resolved_at="2024-12-31T14:30:00+00:00",
+            ),
+        ]
+
+        await db_operations.upsert_events(events=events)
+
+        # Create test scores for each event
+        scores = []
+
+        for event in events:
+            for i in range(3):
+                # 3 miners per event
+                miner_uid = i + 1
+                scores.append(
+                    ScoresModel(
+                        event_id=event.event_id,
+                        miner_uid=miner_uid,
+                        miner_hotkey=f"hk_{miner_uid}",
+                        prediction=miner_uid / 10,
+                        event_score=0.5,
+                        spec_version=1,
+                    )
+                )
+
+        await db_operations.insert_peer_scores(scores)
+
+        # Test with moving window of 1 (should return top 1 events)
+        result_small_window = await db_operations.get_predictions_ranked(moving_window=1)
+
+        # Should return 3 rows (1 events × 3 miners)
+        assert result_small_window == [
+            (
+                "event2",
+                1,
+                "0",
+                1,
+                "hk_1",
+                0.1,
+            ),
+            (
+                "event2",
+                1,
+                "0",
+                2,
+                "hk_2",
+                0.2,
+            ),
+            (
+                "event2",
+                1,
+                "0",
+                3,
+                "hk_3",
+                0.3,
+            ),
+        ]
+
+        # Test with moving window of 100
+        result_large_window = await db_operations.get_predictions_ranked(moving_window=100)
+
+        # Should return 6 rows (2 events × 3 miners)
+        assert result_large_window == [
+            (
+                "event2",
+                1,
+                "0",
+                1,
+                "hk_1",
+                0.1,
+            ),
+            (
+                "event2",
+                1,
+                "0",
+                2,
+                "hk_2",
+                0.2,
+            ),
+            (
+                "event2",
+                1,
+                "0",
+                3,
+                "hk_3",
+                0.3,
+            ),
+            (
+                "event1",
+                2,
+                "1",
+                1,
+                "hk_1",
+                0.1,
+            ),
+            (
+                "event1",
+                2,
+                "1",
+                2,
+                "hk_2",
+                0.2,
+            ),
+            (
+                "event1",
+                2,
+                "1",
+                3,
+                "hk_3",
+                0.3,
+            ),
+        ]
+
+    async def test_get_predictions_ranked_no_events(
+        self, db_operations: DatabaseOperations, db_client: DatabaseClient
+    ):
+        result = await db_operations.get_predictions_ranked(moving_window=2)
+
+        assert len(result) == 0
+
+    async def test_get_events(self, db_operations: DatabaseOperations):
+        events = [
+            EventsModel(
+                unique_event_id="unique1",
+                event_id="event1",
+                market_type="truncated_market1",
+                event_type="market1",
+                description="desc1",
+                outcome="1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value1"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
+            ),
+            EventsModel(
+                unique_event_id="unique2",
+                event_id="event2",
+                market_type="truncated_market2",
+                event_type="market2",
+                description="desc2",
+                outcome="0",
+                status=EventStatus.PENDING,
+                metadata='{"key": "value2"}',
+                created_at="2012-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
+            ),
+            EventsModel(
+                unique_event_id="unique3",
+                event_id="event3",
+                market_type="truncated_market3",
+                event_type="market3",
+                description="desc3",
+                outcome="1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value3"}',
+                created_at="2015-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
+            ),
+        ]
+
+        await db_operations.upsert_events(events=events)
+
+        unique_event_ids = ["unique1", "unique3"]
+        result = await db_operations.get_events(unique_event_ids=unique_event_ids)
+
+        # Verify results
+        assert len(result) == 2
+        assert result[0].event_id == events[0].event_id
+        assert result[1].event_id == events[2].event_id
+
+    async def test_get_events_empty_events_ids_list(self, db_operations: DatabaseOperations):
+        unique_event_ids = []
+
+        result = await db_operations.get_events(unique_event_ids=unique_event_ids)
+
+        assert len(result) == 0
+
+    async def test_count_events_for_alternative_metagraph_scoring(
+        self, db_operations: DatabaseOperations, db_client: DatabaseClient
+    ):
+        scores = [
+            ScoresModel(
+                event_id="event_id_1",
+                miner_uid=11,
+                miner_hotkey="hk_11",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+            ScoresModel(
+                event_id="event_id_1",
+                miner_uid=12,
+                miner_hotkey="hk_12",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+        ]
+
+        await db_operations.insert_peer_scores(scores=scores)
+
+        await db_client.update(
+            "UPDATE scores SET alternative_processed = true",
+        )
+
+        result = await db_operations.count_events_for_alternative_metagraph_scoring()
+
+        assert result == 0
+
+        await db_client.update(
+            "UPDATE scores SET alternative_processed = false",
+        )
+
+        result = await db_operations.count_events_for_alternative_metagraph_scoring()
+
+        assert result == 1
+
+    async def test_mark_scores_as_alternative_processed_where_not_processed(
+        self, db_operations: DatabaseOperations, db_client: DatabaseClient
+    ):
+        scores = [
+            ScoresModel(
+                event_id="event_id_1",
+                miner_uid=11,
+                miner_hotkey="hk_11",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+            ScoresModel(
+                event_id="event_id_2",
+                miner_uid=11,
+                miner_hotkey="hk_12",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+        ]
+
+        await db_operations.insert_peer_scores(scores=scores)
+
+        result = await db_client.one(
+            """
+                SELECT
+                    COUNT(*)
+                FROM
+                    scores
+                WHERE
+                    alternative_processed = False
+            """
+        )
+
+        assert result[0] == 2
+
+        await db_operations.mark_scores_as_alternative_processed_where_not_processed()
+
+        result = await db_client.one(
+            """
+                SELECT
+                    COUNT(*)
+                FROM
+                    scores
+                WHERE
+                    alternative_processed = False
+            """
+        )
+
+        assert result[0] == 0
+
+    async def test_update_alternative_metagraph_scores(
+        self, db_operations: DatabaseOperations, db_client: DatabaseClient
+    ):
+        scores = [
+            ScoresModel(
+                event_id="event_id_1",
+                miner_uid=11,
+                miner_hotkey="hk_11",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+            ScoresModel(
+                event_id="event_id_99",
+                miner_uid=11,
+                miner_hotkey="hk_11",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+            ScoresModel(
+                event_id="event_id_2",
+                miner_uid=12,
+                miner_hotkey="hk_12",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+            ScoresModel(
+                event_id="event_id_3",
+                miner_uid=13,
+                miner_hotkey="hk_13",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+            ScoresModel(
+                event_id="event_id_4",
+                miner_uid=14,
+                miner_hotkey="hk_14",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+            ScoresModel(
+                event_id="event_id_processed",
+                miner_uid=13,
+                miner_hotkey="hk_13",
+                prediction=0.1,
+                event_score=0.5,
+                spec_version=1,
+            ),
+        ]
+
+        await db_operations.insert_peer_scores(scores=scores)
+
+        await db_client.update(
+            """
+                UPDATE
+                    scores
+                SET
+                    alternative_processed = TRUE,
+                    alternative_metagraph_score = 99
+                WHERE
+                    event_id = ?
+            """,
+            parameters=[scores[-1].event_id],
+        )
+
+        alternative_metagraph_scores = [
+            AlternativeMetagraphScore(
+                miner_uid=11,
+                miner_hotkey="hk_11",
+                alternative_metagraph_score=0.99,
+                alternative_other_data=json.dumps({"key": "value_1"}),
+            ),
+            AlternativeMetagraphScore(
+                miner_uid=13,
+                miner_hotkey="hk_13",
+                alternative_metagraph_score=0.12,
+                alternative_other_data=json.dumps({"key": "value_2"}),
+            ),
+            AlternativeMetagraphScore(
+                miner_uid=14,
+                miner_hotkey="hk_14",
+                alternative_metagraph_score=None,
+                alternative_other_data=json.dumps({"key": "value_3"}),
+            ),
+        ]
+
+        await db_operations.update_alternative_metagraph_scores(
+            alternative_metagraph_scores=alternative_metagraph_scores
+        )
+
+        result = await db_client.many(
+            "SELECT event_id, miner_uid, miner_hotkey, alternative_metagraph_score, alternative_other_data FROM scores"
+        )
+
+        assert result == [
+            (
+                "event_id_1",
+                11,
+                "hk_11",
+                0.99,
+                '{"key": "value_1"}',
+            ),
+            (
+                "event_id_99",
+                11,
+                "hk_11",
+                0.99,
+                '{"key": "value_1"}',
+            ),
+            (
+                "event_id_2",
+                12,
+                "hk_12",
+                None,
+                None,
+            ),
+            (
+                "event_id_3",
+                13,
+                "hk_13",
+                0.12,
+                '{"key": "value_2"}',
+            ),
+            (
+                "event_id_4",
+                14,
+                "hk_14",
+                None,
+                '{"key": "value_3"}',
+            ),
+            ("event_id_processed", 13, "hk_13", 99.0, None),
         ]

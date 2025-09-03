@@ -392,7 +392,7 @@ class TestResolveEventsTask:
             assert response[0][3] == "{}"
             assert response[1][3] == "{}"
             assert response[2][3] == "{}"
-            assert response[3][3] == "{'2012-09-01T20:43:02Z': 0.07, '2012-09-01T22:43:02Z': 0.51}"
+            assert response[3][3] == '{"2012-09-01T20:43:02Z": 0.07, "2012-09-01T22:43:02Z": 0.51}'
 
             # Act run again
             await resolve_events_task.run()
@@ -416,6 +416,12 @@ class TestResolveEventsTask:
 
             # Check forecasts
             assert response[0][3] == "{}"
-            assert response[1][3] == "{'2012-09-01T20:43:02Z': 0.07, '2012-09-01T22:43:02Z': 0.51}"
+            assert response[1][3] == '{"2012-09-01T20:43:02Z": 0.07, "2012-09-01T22:43:02Z": 0.51}'
             assert response[2][3] == "{}"
-            assert response[3][3] == "{'2012-09-01T20:43:02Z': 0.07, '2012-09-01T22:43:02Z': 0.51}"
+            assert response[3][3] == '{"2012-09-01T20:43:02Z": 0.07, "2012-09-01T22:43:02Z": 0.51}'
+
+            # Ensure valid JSON
+            assert json.loads(response[3][3]) == {
+                "2012-09-01T20:43:02Z": 0.07,
+                "2012-09-01T22:43:02Z": 0.51,
+            }

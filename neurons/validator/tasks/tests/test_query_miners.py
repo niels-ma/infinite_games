@@ -8,14 +8,18 @@ import pytest
 import torch
 from bittensor.core.chain_data import AxonInfo
 from bittensor.core.dendrite import DendriteMixin
-from bittensor.core.metagraph import MetagraphMixin
+from bittensor.core.metagraph import AsyncMetagraph
 
 from neurons.protocol import EventPrediction, EventPredictionSynapse
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.models.reasoning import ReasoningModel
-from neurons.validator.tasks.query_miners import REASONING_LENGTH_LIMIT, QueryMiners
+from neurons.validator.tasks.query_miners import (
+    REASONING_LENGTH_LIMIT,
+    ExtendedAxonInfo,
+    QueryMiners,
+)
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 
@@ -29,8 +33,8 @@ class TestQueryMiners:
     @pytest.fixture
     def query_miners_task(self, db_operations: DatabaseOperations):
         dendrite = MagicMock(spec=DendriteMixin)
-        metagraph = MagicMock(spec=MetagraphMixin)
-        metagraph.sync = MagicMock()
+        metagraph = MagicMock(spec=AsyncMetagraph)
+        metagraph.sync = AsyncMock()
         logger = MagicMock(spec=InfiniteGamesLogger)
 
         return QueryMiners(
@@ -69,23 +73,81 @@ class TestQueryMiners:
         )
 
         # Call the method
-        result = query_miners_task.get_axons()
+        all_axons, filtered_axons = query_miners_task.get_axons()
 
         # Assertions
+        # All non none axons should be included
+        assert all_axons == {
+            0: ExtendedAxonInfo(
+                version=1,
+                ip="ip1",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey1",
+                coldkey="coldkey1",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=True,
+                validator_permit=True,
+            ),
+            1: ExtendedAxonInfo(
+                version=1,
+                ip="ip2",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey2",
+                coldkey="coldkey2",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=False,
+                validator_permit=True,
+            ),
+            2: ExtendedAxonInfo(
+                version=1,
+                ip="0.0.0.0",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey3",
+                coldkey="coldkey3",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=False,
+                validator_permit=False,
+            ),
+        }
+
         # Only UIDs 0 & 1 should be included because they are serving
-        assert len(result) == 2
-
-        # Check hotkeys
-        assert result[0].hotkey == "hotkey1"
-        assert result[1].hotkey == "hotkey2"
-
-        # Check is validating
-        assert result[0].is_validating is True
-        assert result[1].is_validating is False
-
-        # Check validator permit
-        assert result[0].validator_permit is True
-        assert result[1].validator_permit is True
+        assert filtered_axons == {
+            0: ExtendedAxonInfo(
+                version=1,
+                ip="ip1",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey1",
+                coldkey="coldkey1",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=True,
+                validator_permit=True,
+            ),
+            1: ExtendedAxonInfo(
+                version=1,
+                ip="ip2",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey2",
+                coldkey="coldkey2",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=False,
+                validator_permit=True,
+            ),
+        }
 
     def test_get_axons_unique_cold_keys(
         self,
@@ -105,14 +167,55 @@ class TestQueryMiners:
         query_miners_task.metagraph.validator_permit = torch.nn.Parameter(torch.tensor([1.0, 1.0]))
 
         # Call the method
-        result = query_miners_task.get_axons()
+        all_axons, filtered_axons = query_miners_task.get_axons()
 
         # Assertions
-        # Only UID 0 should be included because it is serving and has unique cold key
-        assert len(result) == 1
 
-        # Check correct axon is returned
-        assert result[0].hotkey == "hotkey1"
+        assert all_axons == {
+            0: ExtendedAxonInfo(
+                version=1,
+                ip="ip1",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey1",
+                coldkey="coldkey1",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=True,
+                validator_permit=True,
+            ),
+            1: ExtendedAxonInfo(
+                version=1,
+                ip="ip2",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey2",
+                coldkey="coldkey1",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=False,
+                validator_permit=True,
+            ),
+        }
+
+        # Only UID 0 should be included because it is serving and has unique cold key
+        assert filtered_axons == {
+            0: ExtendedAxonInfo(
+                version=1,
+                ip="ip1",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey1",
+                coldkey="coldkey1",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=True,
+                validator_permit=True,
+            )
+        }
 
     def test_get_axons_unique_ips(
         self,
@@ -132,14 +235,54 @@ class TestQueryMiners:
         query_miners_task.metagraph.validator_permit = torch.nn.Parameter(torch.tensor([1.0, 1.0]))
 
         # Call the method
-        result = query_miners_task.get_axons()
+        all_axons, filtered_axons = query_miners_task.get_axons()
 
         # Assertions
-        # Only UID 0 should be included because it is serving and has unique ip
-        assert len(result) == 1
+        assert all_axons == {
+            0: ExtendedAxonInfo(
+                version=1,
+                ip="ip1",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey1",
+                coldkey="coldkey1",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=True,
+                validator_permit=True,
+            ),
+            1: ExtendedAxonInfo(
+                version=1,
+                ip="ip1",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey2",
+                coldkey="coldkey2",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=False,
+                validator_permit=True,
+            ),
+        }
 
-        # Check correct axon is returned
-        assert result[0].hotkey == "hotkey1"
+        # Only UID 0 should be included because it is serving and has unique ip
+        assert filtered_axons == {
+            0: ExtendedAxonInfo(
+                version=1,
+                ip="ip1",
+                port=1,
+                ip_type=1,
+                hotkey="hotkey1",
+                coldkey="coldkey1",
+                protocol=4,
+                placeholder1=0,
+                placeholder2=0,
+                is_validating=True,
+                validator_permit=True,
+            )
+        }
 
     def test_get_axons_empty_metagraph(
         self,
@@ -149,11 +292,13 @@ class TestQueryMiners:
         query_miners_task.metagraph.uids = np.array([])  # No UIDs in the metagraph
 
         # Call the method
-        result = query_miners_task.get_axons()
+        all_axons, filtered_axons = query_miners_task.get_axons()
 
         # Assertions
+        assert all_axons == {}
+
         # No axons should be included
-        assert result == {}
+        assert filtered_axons == {}
 
     def test_make_predictions_synapse(self, query_miners_task: QueryMiners):
         events_from_db = [
@@ -316,15 +461,28 @@ class TestQueryMiners:
             )
         ]
 
-    async def test_query_neurons(self, query_miners_task: QueryMiners):
-        synapse = EventPredictionSynapse(events={})
+    async def test_query_neurons(self, query_miners_task: QueryMiners, monkeypatch):
+        synapse = MagicMock(model_copy=MagicMock())
 
         axons_by_uid = {
             "1": MagicMock(spec=AxonInfo, hotkey="hotkey_1"),
             "50": MagicMock(spec=AxonInfo, hotkey="hotkey_50"),
         }
 
-        query_miners_task.dendrite.forward = AsyncMock(return_value=[synapse, synapse])
+        query_miners_task.dendrite.call = AsyncMock(return_value=synapse)
+
+        iterator_called = False
+
+        async def fake_async_iterator(items):
+            nonlocal iterator_called
+            iterator_called = True
+
+            for item in items:
+                yield item
+
+        monkeypatch.setattr(
+            "neurons.validator.tasks.query_miners.async_iterator", fake_async_iterator
+        )
 
         response = await query_miners_task.query_neurons(axons_by_uid=axons_by_uid, synapse=synapse)
 
@@ -332,6 +490,10 @@ class TestQueryMiners:
         assert len(response) == 2
         assert response["1"] == synapse
         assert response["50"] == synapse
+
+        assert iterator_called is True
+        assert synapse.model_copy.call_count == 2
+        assert query_miners_task.dendrite.call.await_count == 2
 
     async def test_store_miners(self, db_client: DatabaseClient, query_miners_task: QueryMiners):
         block = 12345
@@ -612,7 +774,7 @@ class TestQueryMiners:
         # Set up the bittensor mocks
         block = 101.0
 
-        query_miners_task.metagraph.uids = np.array([0, 1])
+        query_miners_task.metagraph.uids = np.array([0, 1, 2])
         query_miners_task.metagraph.block = torch.nn.Parameter(torch.tensor(block))
         query_miners_task.metagraph.axons = (
             AxonInfo(
@@ -644,20 +806,17 @@ class TestQueryMiners:
             )
         )
 
-        async def forward(
-            axons: list[AxonInfo], synapse: EventPredictionSynapse, deserialize: bool, timeout: int
+        async def call(
+            target_axon: AxonInfo, synapse: EventPredictionSynapse, deserialize: bool, timeout: int
         ):
             # Add a fake probability to each event in synapse.events
             for _, event in synapse.events.items():
                 event.probability = 0.8
                 event.reasoning = "Test reasoning"
 
-            # Build responses
-            responses = [synapse for _ in axons]
+            return synapse
 
-            return responses
-
-        query_miners_task.dendrite.forward = forward
+        query_miners_task.dendrite.call = call
 
         # Configure mock to return our test time when now() is called
         mocked_interval_start_minutes = 530160
@@ -752,9 +911,8 @@ class TestQueryMiners:
                 """
         )
 
-        assert len(miners) == 2
-        assert miners[0] == ("0", "hotkey_1", True, True)
-        assert miners[1] == ("1", "hotkey_2", False, False)
+        # All axons should be stored, including the axon uid 2 that is filtered out
+        assert miners == [("0", "hotkey_1", 1, 1), ("1", "hotkey_2", 0, 0), ("2", "hotkey_3", 0, 0)]
 
         # Assert reasonings
         reasonings = await db_client.many(

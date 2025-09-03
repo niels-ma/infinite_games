@@ -7,6 +7,7 @@ flake8-isort==6.1.1
 flake8>=7,<8
 freezegun==1.5.1
 isort>=5,<6
+py-spy
 pytest
 pytest-asyncio
 pytest-env

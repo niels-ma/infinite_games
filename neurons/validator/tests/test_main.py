@@ -2,7 +2,7 @@ import asyncio
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
-from bittensor.core.metagraph import MetagraphMixin
+from bittensor.core.metagraph import AsyncMetagraph
 
 from neurons.validator.main import main
 
@@ -24,7 +24,7 @@ class TestValidatorMain:
             patch("neurons.validator.main.get_config", spec=True) as get_config,
             patch("neurons.validator.main.Dendrite", spec=True),
             patch("neurons.validator.main.Wallet", spec=True),
-            patch("neurons.validator.main.Subtensor", spec=True) as MockSubtensor,
+            patch("neurons.validator.main.AsyncSubtensor", spec=True) as MockSubtensor,
             patch("neurons.validator.main.IfGamesClient", spec=True) as MockIfGamesClient,
             patch("neurons.validator.main.DatabaseClient", spec=True) as MockDatabaseClient,
             patch("neurons.validator.main.TasksScheduler") as MockTasksScheduler,
@@ -47,7 +47,7 @@ class TestValidatorMain:
 
             # Mock Subtensor
             mock_subtensor = MockSubtensor.return_value
-            mock_subtensor.metagraph.return_value = MagicMock(spec=MetagraphMixin)
+            mock_subtensor.metagraph.return_value = MagicMock(spec=AsyncMetagraph)
 
             # Mock Database Client
             mock_db_client = MockDatabaseClient.return_value
@@ -100,8 +100,8 @@ class TestValidatorMain:
             # Verify event loop lag is measured
             mock_measure_event_loop_lag.assert_awaited_once()
 
-            # Verify tasks
-            assert mock_scheduler.add.call_count == 12
+            # Verify tasks added count
+            assert mock_scheduler.add.call_count == 13
 
             # Verify logging
             mock_logger.info.assert_called_with(

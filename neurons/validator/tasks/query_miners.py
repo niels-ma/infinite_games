@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -6,12 +7,13 @@ from typing import Iterable
 
 from bittensor.core.chain_data import AxonInfo
 from bittensor.core.dendrite import DendriteMixin
-from bittensor.core.metagraph import MetagraphMixin
+from bittensor.core.metagraph import AsyncMetagraph
 
 from neurons.protocol import EventPrediction, EventPredictionSynapse
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.models.reasoning import ReasoningModel
 from neurons.validator.scheduler.task import AbstractTask
+from neurons.validator.utils.common.async_iterator import async_iterator
 from neurons.validator.utils.common.converters import torch_or_numpy_to_int
 from neurons.validator.utils.common.interval import get_interval_start_minutes
 from neurons.validator.utils.config import IfgamesEnvType
@@ -34,7 +36,6 @@ class QueryMiners(AbstractTask):
     interval: float
     db_operations: DatabaseOperations
     dendrite: DendriteMixin
-    metagraph: MetagraphMixin
     env: IfgamesEnvType
     logger: InfiniteGamesLogger
 
@@ -43,7 +44,7 @@ class QueryMiners(AbstractTask):
         interval_seconds: float,
         db_operations: DatabaseOperations,
         dendrite: DendriteMixin,
-        metagraph: MetagraphMixin,
+        metagraph: AsyncMetagraph,
         env: IfgamesEnvType,
         logger: InfiniteGamesLogger,
     ):
@@ -59,8 +60,8 @@ class QueryMiners(AbstractTask):
             raise TypeError("dendrite must be an instance of DendriteMixin.")
 
         # Validate metagraph
-        if not isinstance(metagraph, MetagraphMixin):
-            raise TypeError("metagraph must be an instance of MetagraphMixin.")
+        if not isinstance(metagraph, AsyncMetagraph):
+            raise TypeError("metagraph must be an instance of AsyncMetagraph.")
 
         # Validate env
         if not isinstance(env, str):
@@ -96,21 +97,21 @@ class QueryMiners(AbstractTask):
         synapse = self.make_predictions_synapse(events)
 
         # Sync metagraph & store the current block
-        self.metagraph.sync(lite=True)
+        await self.metagraph.sync(lite=True)
         block = torch_or_numpy_to_int(self.metagraph.block)
 
         # Get axons to query
-        axons = self.get_axons()
-
-        if not len(axons):
-            return
+        all_axons, filtered_axons = self.get_axons()
 
         # Store miners
-        await self.store_miners(block=block, axons=axons)
+        await self.store_miners(block=block, axons=all_axons)
+
+        if not len(filtered_axons):
+            return
 
         # Query neurons
         predictions_synapses: SynapseResponseByUidType = await self.query_neurons(
-            axons_by_uid=axons, synapse=synapse
+            axons_by_uid=filtered_axons, synapse=synapse
         )
 
         interval_start_minutes = get_interval_start_minutes()
@@ -121,8 +122,10 @@ class QueryMiners(AbstractTask):
             neurons_predictions=predictions_synapses,
         )
 
-    def get_axons(self) -> AxonInfoByUidType:
-        axons: AxonInfoByUidType = {}
+    def get_axons(self) -> tuple[AxonInfoByUidType, AxonInfoByUidType]:
+        all_axons: AxonInfoByUidType = {}
+        filtered_axons: AxonInfoByUidType = {}
+
         seen_cold_keys: set[str] = set()
         seen_ips: set[str] = set()
 
@@ -130,7 +133,20 @@ class QueryMiners(AbstractTask):
             int_uid = torch_or_numpy_to_int(uid)
             axon = self.metagraph.axons[int_uid]
 
-            if axon is not None and axon.is_serving:
+            if axon is None:
+                continue
+
+            is_validating = True if self.metagraph.validator_trust[uid].float() > 0.0 else False
+            validator_permit = torch_or_numpy_to_int(self.metagraph.validator_permit[uid]) > 0
+
+            extended_axon = ExtendedAxonInfo(
+                **asdict(axon), is_validating=is_validating, validator_permit=validator_permit
+            )
+
+            all_axons[int_uid] = extended_axon
+
+            # Filtering logic
+            if axon.is_serving:
                 if self.env == "prod":
                     # Only allow unique cold keys
                     if axon.coldkey in seen_cold_keys:
@@ -150,19 +166,12 @@ class QueryMiners(AbstractTask):
 
                         continue
 
-                is_validating = True if self.metagraph.validator_trust[uid].float() > 0.0 else False
-                validator_permit = torch_or_numpy_to_int(self.metagraph.validator_permit[uid]) > 0
-
-                extended_axon = ExtendedAxonInfo(
-                    **asdict(axon), is_validating=is_validating, validator_permit=validator_permit
-                )
-
-                axons[int_uid] = extended_axon
+                filtered_axons[int_uid] = extended_axon
 
                 seen_cold_keys.add(axon.coldkey)
                 seen_ips.add(axon.ip)
 
-        return axons
+        return all_axons, filtered_axons
 
     def make_predictions_synapse(self, events: Iterable[tuple[any]]) -> EventPredictionSynapse:
         compiled_events: dict[str, EventPrediction] = {}
@@ -238,25 +247,29 @@ class QueryMiners(AbstractTask):
     async def query_neurons(self, axons_by_uid: AxonInfoByUidType, synapse: EventPredictionSynapse):
         timeout = 120
 
-        axons_list = list(axons_by_uid.values())
-
         start_time = time.time()
 
-        # Use forward directly to make it async
-        responses: list[EventPredictionSynapse] = await self.dendrite.forward(
-            # Send the query to selected miner axons in the network.
-            axons=axons_list,
-            synapse=synapse,
-            # Do not deserialize the response so that we have access to the raw response.
-            deserialize=False,
-            timeout=timeout,
-        )
+        tasks: list[asyncio.Task[EventPredictionSynapse]] = []
+
+        async for axon in async_iterator(axons_by_uid.values()):
+            tasks.append(
+                asyncio.create_task(
+                    self.dendrite.call(
+                        target_axon=axon,
+                        synapse=synapse.model_copy(),
+                        deserialize=False,
+                        timeout=timeout,
+                    )
+                )
+            )
+
+        responses = await asyncio.gather(*tasks)
 
         elapsed_time_ms = round((time.time() - start_time) * 1000)
 
         self.logger.debug(
             "Miners queried",
-            extra={"miners_count": len(axons_list), "elapsed_time_ms": elapsed_time_ms},
+            extra={"miners_count": len(axons_by_uid), "elapsed_time_ms": elapsed_time_ms},
         )
 
         responses_by_uid: SynapseResponseByUidType = {}

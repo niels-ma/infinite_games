@@ -227,8 +227,6 @@ class TestTrainCPModel:
         assert wide["prediction_rank_2"].iloc[1] == pytest.approx((4.0 + 6.0) / 2)
 
     def test_train_model(self, train_cp_model_task):
-        task = train_cp_model_task
-
         wide_df = pd.DataFrame(
             {
                 "event_id": ["e1", "e2", "e3", "e4"],
@@ -239,7 +237,7 @@ class TestTrainCPModel:
             }
         )
 
-        model = task.train_model(wide_df)
+        model = TrainCommunityPredictionModel.train_model(wide_df)
 
         assert isinstance(model, LogisticRegression)
         assert hasattr(model, "coef_")

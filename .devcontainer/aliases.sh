@@ -15,6 +15,16 @@ function validator_testnet() {
         --logging.debug 2>&1 | tee validator.log
 }
 
+function profile_validator_testnet() {
+    py-spy record -o validator_profile_out.json --format speedscope --duration 30 \
+        -- python neurons/validator.py \
+        --netuid 155 \
+        --subtensor.network test \
+        --wallet.name validator \
+        --wallet.hotkey default
+}
+
+
 function miner_testnet() {
     python neurons/miner.py \
         --netuid 155 \

@@ -32,7 +32,6 @@ jobs:
           set -euo pipefail
           cd /root/if-games-validator
           git pull --rebase
-          source venv/bin/activate
           pip install -r requirements.txt
           pm2 delete validator
           cp validator.db /root/validator-db/validator1.db

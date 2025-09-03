@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
-from bittensor.core.metagraph import MetagraphMixin
+from bittensor.core.metagraph import AsyncMetagraph
 from freezegun import freeze_time
 from pandas.testing import assert_frame_equal
 
@@ -42,8 +42,8 @@ class TestPeerScoring:
         self,
         db_operations: DatabaseOperations,
     ):
-        metagraph = MagicMock(spec=MetagraphMixin)
-        metagraph.sync = MagicMock()
+        metagraph = MagicMock(spec=AsyncMetagraph)
+        metagraph.sync = AsyncMock()
 
         # Mock metagraph attributes
         metagraph.uids = torch.tensor([1, 2, 3], dtype=torch.int32).to("cpu")
@@ -59,27 +59,13 @@ class TestPeerScoring:
                 logger=logger,
             )
 
-    def test_init(self, peer_scoring_task: PeerScoring):
+    async def test_metagraph_lite_sync(self, peer_scoring_task: PeerScoring):
         unit = peer_scoring_task
-
-        assert isinstance(unit, PeerScoring)
-        assert torch.equal(unit.current_uids, torch.tensor([1, 2, 3], dtype=torch.int32))
-        assert unit.current_hotkeys == ["hotkey1", "hotkey2", "hotkey3"]
-        assert unit.n_hotkeys == 3
-        assert unit.interval_seconds == 60.0
-        assert unit.current_miners_df.index.size == 3
-        assert unit.current_miners_df.miner_uid.tolist() == [1, 2, 3]
-
-    def test_metagraph_lite_sync(self, peer_scoring_task: PeerScoring):
-        unit = peer_scoring_task
-
-        assert unit.current_miners_df.miner_uid.tolist() == [1, 2, 3]
-        assert unit.current_hotkeys == ["hotkey1", "hotkey2", "hotkey3"]
 
         unit.metagraph.uids = torch.tensor([1, 2, 3, 4], dtype=torch.int32)
         unit.metagraph.hotkeys = ["hotkey1", "hotkey2", "hotkey3", "hotkey4"]
 
-        unit.metagraph_lite_sync()
+        await unit.metagraph_lite_sync()
         assert unit.current_miners_df.miner_uid.tolist() == [1, 2, 3, 4]
         assert unit.current_miners_df.miner_hotkey.tolist() == [
             "hotkey1",
@@ -1330,6 +1316,15 @@ class TestPeerScoring:
         db_ops = unit.db_operations
 
         await unit.run()
+
+        # Assert sync metagraph loads the data
+        assert torch.equal(unit.current_uids, torch.tensor([1, 2, 3], dtype=torch.int32))
+        assert unit.current_hotkeys == ["hotkey1", "hotkey2", "hotkey3"]
+        assert unit.n_hotkeys == 3
+        assert unit.interval_seconds == 60.0
+        assert unit.current_miners_df.index.size == 3
+        assert unit.current_miners_df.miner_uid.tolist() == [1, 2, 3]
+
         # expect no miners found in the DB
         assert unit.errors_count == 1
         assert unit.logger.error.call_count == 1
