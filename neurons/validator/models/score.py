@@ -50,3 +50,10 @@ class ScoresModel(BaseModel):
 
 
 SCORE_FIELDS = ScoresModel.model_fields.keys()
+
+
+class AlternativeMetagraphScore(BaseModel):
+    miner_uid: int
+    miner_hotkey: str
+    alternative_metagraph_score: float | None
+    alternative_other_data: str

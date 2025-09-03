@@ -31,7 +31,7 @@ def assert_requirements():
     # Assert Python version
     system_python_version = version_info[:3]
 
-    MIN_PYTHON_VERSION = (3, 10, 0)
+    MIN_PYTHON_VERSION = (3, 11, 0)
 
     if system_python_version < MIN_PYTHON_VERSION:
         raise AssertionError(

@@ -85,49 +85,10 @@ jobs:
           docker compose -f docker-compose.dev.yaml up -d if_validator_develop
           EOF
 
-  deploy_miner:
-    needs: [build_push_image]
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y python3-pip openssh-client
-
-      - name: Create .ssh directory
-        run: mkdir -p ~/.ssh
-
-      - name: Deploy to server
-        env:
-          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
-        run: |
-          ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_STAGE_MINER_IP }} >> ~/.ssh/known_hosts
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
-          ssh-add - <<< "${{ secrets.SSH_PRIVATE_KEY }}"
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_MINER_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
-          export AWS_ECR_REGISTRY=${{ secrets.AWS_ECR_REGISTRY }}
-          export API_ACCESS_KEYS=not_needed
-          docker compose -f docker-compose.dev.yaml down --rmi all
-          EOF
-          scp -P ${{ secrets.SERVER_PORT }} docker-compose.dev.yaml root@${{ secrets.SERVER_STAGE_MINER_IP }}:/root/docker-compose.dev.yaml
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_MINER_IP }} -p ${{ secrets.SERVER_PORT }} << EOF
-          export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ECR_PUBLIC_KEY }}
-          export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_ECR_PRIVATE_KEY }}
-          export AWS_DEFAULT_REGION=${{ secrets.AWS_ECR_REGION }}
-          aws ecr get-login-password --region ${{ secrets.AWS_ECR_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_REGISTRY }}
-          export AWS_ECR_REGISTRY=${{ secrets.AWS_ECR_REGISTRY }}
-          export API_ACCESS_KEYS=not_needed
-          docker compose -f docker-compose.dev.yaml up -d if_miner_develop
-          EOF
-
   discord_alerts:
     runs-on: ubuntu-latest
 
-    needs: [build_push_image, deploy_validator, deploy_miner]
+    needs: [build_push_image, deploy_validator]
 
     if: always()
 
@@ -150,20 +111,12 @@ jobs:
           -d "{\"content\": \"$MESSAGE\"}" \
           $WEBHOOK_URL
 
-      - name: Alert miner deployment failure
-        if: needs.deploy_miner.result == 'failure'
-        run: |
-          WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
-          MESSAGE="Deploy miner DEVELOP failed"
-          curl -H "Content-Type: application/json" \
-          -d "{\"content\": \"$MESSAGE\"}" \
-          $WEBHOOK_URL
 
       - name: Alert deployments completed
-        if: needs.deploy_validator.result == 'success' && needs.deploy_miner.result == 'success'
+        if: needs.deploy_validator.result == 'success' 
         run: |
           WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
-          MESSAGE="Deploy validator/miner DEVELOP complete"
+          MESSAGE="Deploy validator DEVELOP complete"
           curl -H "Content-Type: application/json" \
           -d "{\"content\": \"$MESSAGE\"}" \
           $WEBHOOK_URL

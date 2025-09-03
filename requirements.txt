@@ -2,7 +2,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 aiohttp~=3.10.2
 aiosqlite==0.20.0
-aiosqlitepool==1.0.0
 alembic==1.14.1
 anthropic==0.28.0
 backoff==2.2.1

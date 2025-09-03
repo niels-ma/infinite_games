@@ -12,7 +12,12 @@ from neurons.validator.models.prediction import (
     PredictionsModel,
 )
 from neurons.validator.models.reasoning import REASONING_FIELDS, ReasoningModel
-from neurons.validator.models.score import SCORE_FIELDS, ScoresExportedStatus, ScoresModel
+from neurons.validator.models.score import (
+    SCORE_FIELDS,
+    AlternativeMetagraphScore,
+    ScoresExportedStatus,
+    ScoresModel,
+)
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 SQL_FOLDER = Path(Path(__file__).parent, "sql")
@@ -268,6 +273,26 @@ class DatabaseOperations:
 
         return EventsModel(**dict(result))
 
+    async def get_events(self, unique_event_ids) -> list[EventsModel]:
+        placeholders = ", ".join(["?"] * len(unique_event_ids))
+
+        rows = await self.__db_client.many(
+            f"""
+                SELECT
+                    {', '.join(EVENTS_FIELDS)}
+                FROM
+                    events
+                WHERE
+                    unique_event_id IN ({placeholders})
+            """,
+            parameters=unique_event_ids,
+            use_row_factory=True,
+        )
+
+        events = self._parse_rows(model=EventsModel, rows=rows)
+
+        return events
+
     async def get_events_last_deleted_at(self) -> str | None:
         row = await self.__db_client.one(
             """
@@ -383,6 +408,44 @@ class DatabaseOperations:
             [PredictionExportedStatus.EXPORTED] + ids,
         )
 
+    async def get_predictions_ranked(self, moving_window: int):
+        return await self.__db_client.many(
+            """
+                WITH events_pool AS (
+                    SELECT
+                        event_id,
+                        MIN(ROWID) AS event_min_row
+                    FROM
+                        scores
+                    GROUP BY
+                        event_id
+                ),
+                ranked_events AS (
+                    SELECT
+                        event_id,
+                        RANK() OVER (ORDER BY event_min_row DESC) AS event_rank
+                    FROM
+                        events_pool
+                )
+                SELECT
+                    rev.event_id,
+                    rev.event_rank,
+                    ev.outcome,
+                    sc.miner_uid,
+                    sc.miner_hotkey,
+                    sc.prediction
+                FROM
+                    ranked_events rev
+                JOIN scores sc USING(event_id)
+                JOIN events ev USING(event_id)
+                WHERE
+                    rev.event_rank <= ?
+                ORDER BY
+                    rev.event_rank ASC, sc.miner_uid ASC, sc.miner_hotkey ASC
+            """,
+            [moving_window],
+        )
+
     async def resolve_event(
         self, event_id: str, outcome: str, resolved_at: str, forecasts: str
     ) -> Iterable[tuple[str]]:
@@ -404,6 +467,33 @@ class DatabaseOperations:
             """,
             [EventStatus.SETTLED, outcome, resolved_at, forecasts, event_id, EventStatus.PENDING],
         )
+
+    async def update_alternative_metagraph_scores(
+        self, alternative_metagraph_scores: list[AlternativeMetagraphScore]
+    ):
+        values = ",\n ".join(
+            f"({row.miner_uid}, '{row.miner_hotkey}', {row.alternative_metagraph_score if row.alternative_metagraph_score is not None else 'NULL'}, '{row.alternative_other_data}')"
+            for row in alternative_metagraph_scores
+        )
+
+        sql = f"""
+            WITH mapping(miner_uid, miner_hotkey, alternative_metagraph_score, alternative_other_data) AS (
+                VALUES {values}
+            )
+            UPDATE
+                scores AS s
+            SET
+                alternative_metagraph_score = m.alternative_metagraph_score,
+                alternative_other_data  = m.alternative_other_data
+            FROM
+                mapping AS m
+            WHERE
+                m.miner_uid = s.miner_uid
+                AND m.miner_hotkey = s.miner_hotkey
+                AND s.alternative_processed = FALSE
+        """
+
+        return await self.__db_client.update(sql=sql)
 
     async def upsert_miners(self, miners: list[list[any]]) -> None:
         return await self.__db_client.insert_many(
@@ -724,39 +814,19 @@ class DatabaseOperations:
                 self.logger.exception("Error parsing event", extra={"row": row})
         return events
 
-    async def get_events_for_alternative_metagraph_scoring(
-        self, max_events: int = 1000
-    ) -> list[dict]:
-        """
-        Returns all events that were recently peer scored and not processed.
-        These events need to be ordered by row_id for the moving average calculation.
-        """
-
-        rows = await self.__db_client.many(
+    async def count_events_for_alternative_metagraph_scoring(self) -> int:
+        row = await self.__db_client.one(
             """
                 SELECT
-                    event_id,
-                    MIN(ROWID) AS min_row_id
-                FROM scores
-                WHERE alternative_processed = false
-                GROUP BY event_id
-                ORDER BY min_row_id ASC
-                LIMIT ?
-            """,
-            use_row_factory=True,
-            parameters=[
-                max_events,
-            ],
+                    COUNT(DISTINCT event_id)
+                FROM
+                    scores
+                WHERE
+                    alternative_processed = False
+            """
         )
 
-        events = []
-        for row in rows:
-            try:
-                event = dict(row)
-                events.append(event)
-            except Exception:
-                self.logger.exception("Error parsing event", extra={"row": row})
-        return events
+        return row[0] if row is not None else 0
 
     async def set_metagraph_peer_scores(self, event_id: str, n_events: int) -> list:
         """
@@ -840,6 +910,22 @@ class DatabaseOperations:
                 ScoresExportedStatus.EXPORTED,
                 event_id,
             ),
+        )
+
+    async def mark_scores_as_alternative_processed_where_not_processed(self):
+        """
+        Mark all scores as alternative_processed where not processed
+        """
+
+        return await self.__db_client.update(
+            """
+                UPDATE
+                    scores
+                SET
+                    alternative_processed = TRUE
+                WHERE
+                    alternative_processed = FALSE
+            """,
         )
 
     async def get_last_metagraph_scores(self) -> list:

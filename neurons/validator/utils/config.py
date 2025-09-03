@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Literal
 from unittest.mock import ANY
 
+from bittensor import AsyncSubtensor
 from bittensor.core.config import Config
-from bittensor.core.subtensor import Subtensor
 from bittensor.utils.btlogging import LoggingMachine
 from bittensor_wallet.wallet import Wallet
 
@@ -37,7 +37,8 @@ def get_config():
         help="Directory where the database file is located (default: ./). This must be an absolute directory path that exists",
         required=False,
     )
-    Subtensor.add_args(parser=parser)
+
+    AsyncSubtensor.add_args(parser=parser)
     LoggingMachine.add_args(parser=parser)
     Wallet.add_args(parser=parser)
 

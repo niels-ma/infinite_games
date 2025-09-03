@@ -5,7 +5,7 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
-from bittensor.core.metagraph import MetagraphMixin
+from bittensor.core.metagraph import AsyncMetagraph
 
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.models.event import EventsModel
@@ -66,7 +66,7 @@ class PeerScoring(AbstractTask):
         self,
         interval_seconds: float,
         db_operations: DatabaseOperations,
-        metagraph: MetagraphMixin,
+        metagraph: AsyncMetagraph,
         logger: InfiniteGamesLogger,
         page_size: int = 100,
     ):
@@ -84,7 +84,6 @@ class PeerScoring(AbstractTask):
         self.n_hotkeys = None
         self.current_uids = None
         self.current_miners_df = None
-        self.metagraph_lite_sync()
 
         self.spec_version = spec_version
 
@@ -104,9 +103,9 @@ class PeerScoring(AbstractTask):
     def interval_seconds(self):
         return self.interval
 
-    def metagraph_lite_sync(self):
+    async def metagraph_lite_sync(self):
         # sync the metagraph in lite mode
-        self.metagraph.sync(lite=True)
+        await self.metagraph.sync(lite=True)
         #  WARNING! hotkeys is a list[str] and uids is a torch.tensor
         self.current_hotkeys = copy.deepcopy(self.metagraph.hotkeys)
         self.n_hotkeys = len(self.current_hotkeys)
@@ -543,7 +542,7 @@ class PeerScoring(AbstractTask):
         await self.db_operations.insert_peer_scores(scores)
 
     async def run(self):
-        self.metagraph_lite_sync()
+        await self.metagraph_lite_sync()
 
         miners_synced = await self.miners_last_reg_sync()
         if not miners_synced:

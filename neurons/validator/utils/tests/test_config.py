@@ -13,7 +13,7 @@ DEFAULT_DB_DIRECTORY = str(Path.cwd())
 class TestConfig:
     @pytest.fixture
     def mock_subtensor(self):
-        with patch("neurons.validator.utils.config.Subtensor") as mock:
+        with patch("neurons.validator.utils.config.AsyncSubtensor") as mock:
             # Mock the add_args method
             mock.add_args = MagicMock()
             yield mock

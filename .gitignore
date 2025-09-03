@@ -183,3 +183,6 @@ state.pt
 
 # miner storage
 miner-events.json
+
+# validator profiling
+validator_profile_out.json

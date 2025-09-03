@@ -1,13 +1,13 @@
 import time
 from datetime import datetime, timedelta, timezone
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import bittensor as bt
 import pandas as pd
 import pytest
 import torch
 import torch.test
-from bittensor.core.metagraph import MetagraphMixin
+from bittensor.core.metagraph import AsyncMetagraph
 from bittensor_wallet import Wallet
 from freezegun import freeze_time
 
@@ -45,9 +45,9 @@ class TestSetWeights:
         db_operations: DatabaseOperations,
         bt_wallet: Wallet,  # type: ignore
     ):
-        metagraph = MagicMock(spec=MetagraphMixin)
-        metagraph.sync = MagicMock()
-        subtensor = MagicMock(spec=bt.Subtensor)
+        metagraph = MagicMock(spec=AsyncMetagraph)
+        metagraph.sync = AsyncMock()
+        subtensor = MagicMock(spec=bt.AsyncSubtensor)
 
         # Mock metagraph attributes
         metagraph.uids = torch.tensor([1, 2, 3], dtype=torch.int32).to("cpu")
@@ -57,7 +57,7 @@ class TestSetWeights:
         # Mock subtensor methods
         subtensor.min_allowed_weights.return_value = 1  # Set minimum allowed weights
         subtensor.max_weight_limit.return_value = 10  # Set maximum weight limit
-        subtensor.weights_rate_limit.return_value = 100  # Set weights rate limit
+        subtensor.weights_rate_limit = AsyncMock(return_value=100)  # Set weights rate limit
         subtensor.network = "mock"
 
         logger = MagicMock(spec=InfiniteGamesLogger)
@@ -86,25 +86,16 @@ class TestSetWeights:
         assert unit.subtensor is not None
         assert unit.wallet is not None
 
-        assert unit.current_hotkeys == ["hotkey1", "hotkey2", "hotkey3"]
-        assert unit.current_uids.tolist() == [1, 2, 3]
-        assert unit.n_hotkeys == 3
-        assert len(unit.current_miners_df) == 3
-        assert unit.current_miners_df[SWNames.miner_uid].tolist() == [1, 2, 3]
-
-        assert unit.weights_rate_limit == 100
         assert unit.spec_version == spec_version
 
-    def test_metagraph_lite_sync(self, set_weights_task: SetWeights):
+    async def test_metagraph_lite_sync(self, set_weights_task: SetWeights):
         unit = set_weights_task
-
-        assert unit.current_miners_df.miner_uid.tolist() == [1, 2, 3]
-        assert unit.current_hotkeys == ["hotkey1", "hotkey2", "hotkey3"]
 
         unit.metagraph.uids = torch.tensor([1, 2, 3, 4], dtype=torch.int32)
         unit.metagraph.hotkeys = ["hotkey1", "hotkey2", "hotkey3", "hotkey4"]
 
-        unit.metagraph_lite_sync()
+        await unit.metagraph_lite_sync()
+
         assert unit.current_miners_df.miner_uid.tolist() == [1, 2, 3, 4]
         assert unit.current_miners_df.miner_hotkey.tolist() == [
             "hotkey1",
@@ -124,15 +115,19 @@ class TestSetWeights:
             (101 * BLOCK_DURATION, True),
         ],
     )
-    def test_time_to_set_weights(self, set_weights_task: SetWeights, delta, expected):
+    async def test_time_to_set_weights(self, set_weights_task: SetWeights, delta, expected):
         now = time.time()
         set_weights_task.last_set_weights_at = now - delta
-        result = set_weights_task.time_to_set_weights()
+
+        result = await set_weights_task.time_to_set_weights()
+
         assert result is expected
 
-    def test_filter_last_scores(self, set_weights_task: SetWeights):
+    async def test_filter_last_scores(self, set_weights_task: SetWeights):
         unit = set_weights_task
-        assert unit.current_miners_df.miner_uid.tolist() == [1, 2, 3]
+
+        # Need to call sync to load instance data
+        await unit.metagraph_lite_sync()
 
         last_metagraph_scores = [
             ScoresModel(
@@ -236,8 +231,12 @@ class TestSetWeights:
             ),
         ],
     )
-    def test_check_scores_insanity(self, set_weights_task: SetWeights, data, raises):
+    async def test_check_scores_insanity(self, set_weights_task: SetWeights, data, raises):
+        # Need to sync to load task instance data
+        await set_weights_task.metagraph_lite_sync()
+
         df = pd.DataFrame(data)
+
         if raises:
             with pytest.raises(AssertionError):
                 set_weights_task.check_scores_sanity(df)
@@ -270,7 +269,7 @@ class TestSetWeights:
         )
         assert set_weights_task.logger.debug.call_args[1]["extra"]["sum_scores"] == total
 
-    def test_preprocess_weights_success(self, set_weights_task: SetWeights, monkeypatch):
+    async def test_preprocess_weights_success(self, set_weights_task: SetWeights, monkeypatch):
         data = {
             SWNames.miner_uid: [1, 2, 3],
             SWNames.miner_hotkey: ["hotkey1", "hotkey2", "hotkey3"],
@@ -278,78 +277,82 @@ class TestSetWeights:
         }
         normalized = pd.DataFrame(data)
 
-        # Patch bt.utils.weight_utils.process_weights_for_netuid to return the inputs.
-        import bittensor.utils.weight_utils as wu
+        uids, weights = await set_weights_task.preprocess_weights(normalized)
 
-        monkeypatch.setattr(
-            wu, "process_weights_for_netuid", lambda uids, weights, **kwargs: (uids, weights)
-        )
-        uids, weights = set_weights_task.preprocess_weights(normalized)
         # Expect the same non-zero entries.
         torch.testing.assert_close(
             weights, torch.tensor(data[SWNames.raw_weights], dtype=torch.float)
         )
         torch.testing.assert_close(uids, torch.tensor(data[SWNames.miner_uid], dtype=torch.int))
 
-    def test_preprocess_weights_edge_cases(self, set_weights_task, monkeypatch):
+    async def test_preprocess_weights_edge_cases(self, set_weights_task, monkeypatch):
         data = {
             SWNames.miner_uid: [1, 2, 3],
             SWNames.miner_hotkey: ["hotkey1", "hotkey2", "hotkey3"],
             SWNames.raw_weights: [0.2, 0.3, 0.0],
         }
         normalized = pd.DataFrame(data)
-        import bittensor.utils.weight_utils as wu
 
-        # returns only first two entries
-        monkeypatch.setattr(
-            wu,
-            "process_weights_for_netuid",
-            lambda uids, weights, **kwargs: (uids[weights != 0], weights[weights != 0]),
-        )
-        uids, weights = set_weights_task.preprocess_weights(normalized)
-        torch.testing.assert_close(weights, torch.tensor([0.2, 0.3], dtype=torch.float))
+        uids, weights = await set_weights_task.preprocess_weights(normalized)
+        torch.testing.assert_close(weights, torch.tensor([0.4, 0.6], dtype=torch.float))
         torch.testing.assert_close(uids, torch.tensor([1, 2], dtype=torch.int))
 
-        # return empty tensors
+        # Weights get normalized
+        assert set_weights_task.logger.warning.call_count == 1
+        assert (
+            set_weights_task.logger.warning.call_args[0][0]
+            == "Processed weights do not match the original weights."
+        )
+
+        set_weights_task.logger.warning.reset_mock()
+
+        # Force return empty tensors
         monkeypatch.setattr(
-            wu,
-            "process_weights_for_netuid",
+            "neurons.validator.tasks.set_weights.process_weights",
             lambda uids, weights, **kwargs: (torch.tensor([]), torch.tensor([])),
         )
-        with pytest.raises(ValueError):
-            set_weights_task.preprocess_weights(normalized)
+
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="Failed to process the weights - received None or empty tensors.",
+        ):
+            await set_weights_task.preprocess_weights(normalized)
 
         assert set_weights_task.logger.error.call_count == 1
         assert (
             set_weights_task.logger.error.call_args[0][0]
             == "Failed to process the weights - received None or empty tensors."
         )
+
         set_weights_task.logger.error.reset_mock()
 
-        # return different UIDs
+        # Force return different UIDs
         monkeypatch.setattr(
-            wu,
-            "process_weights_for_netuid",
+            "neurons.validator.tasks.set_weights.process_weights",
             lambda uids, weights, **kwargs: (torch.tensor([1, 2, 4]), weights),
         )
-        with pytest.raises(ValueError):
-            set_weights_task.preprocess_weights(normalized)
+        with pytest.raises(
+            expected_exception=ValueError, match="Processed UIDs do not match the original UIDs."
+        ):
+            await set_weights_task.preprocess_weights(normalized)
 
         assert set_weights_task.logger.error.call_count == 1
         assert (
             set_weights_task.logger.error.call_args[0][0]
             == "Processed UIDs do not match the original UIDs."
         )
+
         set_weights_task.logger.error.reset_mock()
 
-        # return different weights
+        # Force return different weights
         monkeypatch.setattr(
-            wu,
-            "process_weights_for_netuid",
+            "neurons.validator.tasks.set_weights.process_weights",
             lambda uids, weights, **kwargs: (uids, torch.tensor([0.2, 0.3, 0.4])),
         )
+
         normalized.loc[2, SWNames.raw_weights] = 0.41
-        uids, weights = set_weights_task.preprocess_weights(normalized)
+        uids, weights = await set_weights_task.preprocess_weights(normalized)
+
         assert torch.equal(uids, torch.tensor([1, 2, 3], dtype=torch.int))
         torch.testing.assert_close(weights, torch.tensor([0.2, 0.3, 0.4], dtype=torch.float))
 
@@ -372,20 +375,34 @@ class TestSetWeights:
             ),  # error case
         ],
     )
-    def test_subtensor_set_weights(
+    async def test_subtensor_set_weights(
         self, set_weights_task: SetWeights, successful, sw_msg, expected_log
     ):
         processed_uids = torch.tensor([1, 2, 3])
         processed_weights = torch.tensor([0.2, 0.3, 0.5])
-        set_weights_task.subtensor.set_weights.return_value = (successful, sw_msg)
+        set_weights_task.subtensor.set_weights = AsyncMock(return_value=(successful, sw_msg))
         set_weights_task.logger.debug.reset_mock()
         set_weights_task.logger.warning.reset_mock()
         set_weights_task.logger.error.reset_mock()
 
-        set_weights_task.subtensor_set_weights(processed_uids, processed_weights)
+        await set_weights_task.subtensor_set_weights(processed_uids, processed_weights)
+
+        expected_arguments = {
+            "uids": processed_uids,
+            "weights": processed_weights,
+            "netuid": set_weights_task.netuid,
+            "wallet": set_weights_task.wallet,
+            "version_key": set_weights_task.spec_version,
+            "wait_for_inclusion": False,
+            "wait_for_finalization": False,
+            "max_retries": 5,
+        }
+
+        set_weights_task.subtensor.set_weights.assert_awaited_once_with(**expected_arguments)
+
         if successful:
             set_weights_task.logger.debug.assert_called_with(
-                "Weights set successfully.",
+                expected_log,
                 extra={"last_set_weights_at": ANY},
             )
         else:
@@ -395,13 +412,9 @@ class TestSetWeights:
                 "processed_weights[:10]": ANY,
             }
             if "No attempt made" in sw_msg:
-                set_weights_task.logger.warning.assert_called_with(
-                    "Failed to set the weights.", extra=extra
-                )
+                set_weights_task.logger.warning.assert_called_with(expected_log, extra=extra)
             else:
-                set_weights_task.logger.error.assert_called_with(
-                    "Failed to set the weights.", extra=extra
-                )
+                set_weights_task.logger.error.assert_called_with(expected_log, extra=extra)
 
     @pytest.mark.asyncio
     async def test_run_successful(self, set_weights_task: SetWeights, monkeypatch, db_client):
@@ -492,16 +505,7 @@ class TestSetWeights:
         inserted_scores = await db_client.many("SELECT * FROM scores")
         assert len(inserted_scores) == len(scores_list)
 
-        # Patch bt.utils.weight_utils.process_weights_for_netuid to return the inputs.
-        import bittensor.utils.weight_utils as wu
-
-        monkeypatch.setattr(
-            wu,
-            "process_weights_for_netuid",
-            lambda uids, weights, **kwargs: (uids[weights != 0], weights[weights != 0]),
-        )
-
-        unit.subtensor.set_weights.return_value = (True, "Success")
+        unit.subtensor.set_weights = AsyncMock(return_value=(True, "Success"))
 
         # run the task
         await unit.run()

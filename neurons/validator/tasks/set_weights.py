@@ -3,10 +3,11 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-import bittensor as bt
 import pandas as pd
 import torch
-from bittensor.core.metagraph import MetagraphMixin
+from bittensor import AsyncSubtensor
+from bittensor.core.metagraph import AsyncMetagraph
+from bittensor.utils.weight_utils import process_weights
 from bittensor_wallet.wallet import Wallet
 
 from neurons.validator.db.operations import DatabaseOperations
@@ -34,9 +35,8 @@ class SetWeights(AbstractTask):
     interval: float
     db_operations: DatabaseOperations
     logger: InfiniteGamesLogger
-    metagraph: MetagraphMixin
     netuid: int
-    subtensor: bt.Subtensor
+    subtensor: AsyncSubtensor
     wallet: Wallet  # type: ignore
 
     def __init__(
@@ -44,9 +44,9 @@ class SetWeights(AbstractTask):
         interval_seconds: float,
         db_operations: DatabaseOperations,
         logger: InfiniteGamesLogger,
-        metagraph: MetagraphMixin,
+        metagraph: AsyncMetagraph,
         netuid: int,
-        subtensor: bt.Subtensor,
+        subtensor: AsyncSubtensor,
         wallet: Wallet,  # type: ignore
     ):
         if not isinstance(interval_seconds, float) or interval_seconds <= 0:
@@ -68,9 +68,7 @@ class SetWeights(AbstractTask):
         self.n_hotkeys = None
         self.current_uids = None
         self.current_miners_df = None
-        self.metagraph_lite_sync()
 
-        self.weights_rate_limit = self.subtensor.weights_rate_limit(self.netuid)
         self.last_set_weights_at = round(time.time())
         self.spec_version = spec_version
 
@@ -82,9 +80,10 @@ class SetWeights(AbstractTask):
     def interval_seconds(self):
         return self.interval
 
-    def metagraph_lite_sync(self):
+    async def metagraph_lite_sync(self):
         # sync the metagraph in lite mode - # duplicate of PeerScoring.metagraph_lite_sync
-        self.metagraph.sync(lite=True)
+        await self.metagraph.sync(lite=True)
+
         #  WARNING! hotkeys is a list[str] and uids is a torch.tensor
         self.current_hotkeys = copy.deepcopy(self.metagraph.hotkeys)
         self.n_hotkeys = len(self.current_hotkeys)
@@ -96,21 +95,25 @@ class SetWeights(AbstractTask):
             }
         )
 
-    def time_to_set_weights(self):
+    async def time_to_set_weights(self):
+        weights_rate_limit = await self.subtensor.weights_rate_limit(netuid=self.netuid)
+
         # do not attempt to set weights more often than the rate limit
         blocks_since_last_attempt = (
             round(time.time()) - self.last_set_weights_at
         ) // BLOCK_DURATION
+
         last_set_weights_at_dt = datetime.fromtimestamp(
             self.last_set_weights_at, tz=timezone.utc
         ).isoformat(timespec="seconds")
-        if blocks_since_last_attempt < self.weights_rate_limit:
+
+        if blocks_since_last_attempt < weights_rate_limit:
             self.logger.debug(
                 "Not setting the weights - not enough blocks passed.",
                 extra={
                     "last_set_weights_at": last_set_weights_at_dt,
                     "blocks_since_last_attempt": blocks_since_last_attempt,
-                    "weights_rate_limit": self.weights_rate_limit,
+                    "weights_rate_limit": weights_rate_limit,
                 },
             )
             return False
@@ -120,11 +123,12 @@ class SetWeights(AbstractTask):
                 extra={
                     "last_set_weights_at": last_set_weights_at_dt,
                     "blocks_since_last_attempt": blocks_since_last_attempt,
-                    "weights_rate_limit": self.weights_rate_limit,
+                    "weights_rate_limit": weights_rate_limit,
                 },
             )
             # reset the last set weights time here to avoid attempts rate limit
             self.last_set_weights_at = round(time.time())
+
             return True
 
     def filter_last_scores(self, last_metagraph_scores) -> pd.DataFrame:
@@ -220,7 +224,7 @@ class SetWeights(AbstractTask):
 
         return normalized_scores
 
-    def preprocess_weights(
+    async def preprocess_weights(
         self, normalized_scores: pd.DataFrame
     ) -> tuple[torch.Tensor, torch.Tensor]:
         miner_uids_tf = torch.tensor(
@@ -230,13 +234,17 @@ class SetWeights(AbstractTask):
             normalized_scores[SWNames.raw_weights].values, dtype=torch.float
         ).to("cpu")
 
-        processed_uids, processed_weights = bt.utils.weight_utils.process_weights_for_netuid(
+        min_allowed_weights = await self.subtensor.min_allowed_weights(netuid=self.netuid)
+        max_weight_limit = await self.subtensor.max_weight_limit(netuid=self.netuid)
+
+        processed_uids, processed_weights = process_weights(
             uids=miner_uids_tf,
             weights=raw_weights_tf,
-            metagraph=self.metagraph,
-            netuid=self.netuid,
-            subtensor=self.subtensor,
+            num_neurons=self.metagraph.n,
+            min_allowed_weights=min_allowed_weights,
+            max_weight_limit=max_weight_limit,
         )
+
         if (
             processed_uids is None
             or processed_weights is None
@@ -285,8 +293,10 @@ class SetWeights(AbstractTask):
 
         return processed_uids, processed_weights
 
-    def subtensor_set_weights(self, processed_uids: torch.Tensor, processed_weights: torch.Tensor):
-        successful, sw_msg = self.subtensor.set_weights(
+    async def subtensor_set_weights(
+        self, processed_uids: torch.Tensor, processed_weights: torch.Tensor
+    ):
+        successful, sw_msg = await self.subtensor.set_weights(
             wallet=self.wallet,
             netuid=self.netuid,
             uids=processed_uids,
@@ -319,8 +329,10 @@ class SetWeights(AbstractTask):
             )
 
     async def run(self):
-        self.metagraph_lite_sync()
-        can_set_weights = self.time_to_set_weights()
+        await self.metagraph_lite_sync()
+
+        can_set_weights = await self.time_to_set_weights()
+
         if not can_set_weights:
             return
 
@@ -333,6 +345,6 @@ class SetWeights(AbstractTask):
 
         normalized_scores = self.renormalize_weights(filtered_scores)
 
-        uids, weights = self.preprocess_weights(normalized_scores)
+        uids, weights = await self.preprocess_weights(normalized_scores)
 
-        self.subtensor_set_weights(processed_uids=uids, processed_weights=weights)
+        await self.subtensor_set_weights(processed_uids=uids, processed_weights=weights)

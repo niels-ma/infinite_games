@@ -1,5 +1,9 @@
 # Release Notes
 
+## [1.5.9] - 2025-09-02
+- **Validator**: Enforce min Python version 3.11
+- **Validator**: Use async subtensor and metagraph
+
 ## [1.5.8] - 2025-08-19
 - **Bittensor Upgrade**: Upgraded to Bittensor version 9.9.0
 

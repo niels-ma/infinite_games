@@ -4,7 +4,7 @@
       "dockerfile": "Dockerfile",
       "context": ".."
   },
-  // "image": "mcr.microsoft.com/devcontainers/python:3.10",
+
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "features": {
@@ -25,7 +25,7 @@
                       "source.organizeImports": true
                   }
               },
-              "python.pythonPath": "/usr/local/bin/python3.10",
+              "python.pythonPath": "/usr/local/bin/python3.11",
               "python.languageServer": "Pylance"
           },
           "extensions": [
