@@ -127,7 +127,6 @@ class QueryMiners(AbstractTask):
         filtered_axons: AxonInfoByUidType = {}
 
         seen_cold_keys: set[str] = set()
-        seen_ips: set[str] = set()
 
         for uid in self.metagraph.uids:
             int_uid = torch_or_numpy_to_int(uid)
@@ -157,19 +156,9 @@ class QueryMiners(AbstractTask):
 
                         continue
 
-                    # Only allow unique ips
-                    if axon.ip in seen_ips:
-                        self.logger.debug(
-                            "Duplicate axon IP found",
-                            extra={"uid": int_uid, "ip": axon.ip},
-                        )
-
-                        continue
-
                 filtered_axons[int_uid] = extended_axon
 
                 seen_cold_keys.add(axon.coldkey)
-                seen_ips.add(axon.ip)
 
         return all_axons, filtered_axons
 
