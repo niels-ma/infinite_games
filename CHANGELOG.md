@@ -2,6 +2,7 @@
 
 ## [1.6.0] - 2025-09-09
 - **Database**: Enable WAL mode
+- **Miners Querying**: Remove duplicate IP miners filter
 
 ## [1.5.9] - 2025-09-02
 - **Validator**: Enforce min Python version 3.11
