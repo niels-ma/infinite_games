@@ -1,5 +1,8 @@
 # Release Notes
 
+## [1.6.0] - 2025-09-09
+- **Database**: Enable WAL mode
+
 ## [1.5.9] - 2025-09-02
 - **Validator**: Enforce min Python version 3.11
 - **Validator**: Use async subtensor and metagraph

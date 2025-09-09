@@ -20,7 +20,7 @@ services:
       - "8001:8000"
 
     volumes:
-      - /root/validator_develop.db:/root/infinite_games/validator_test.db
+      - /root/validator-db-develop:/root/infinite_games/database
       - ./.bittensor:/root/.bittensor
 
     restart: unless-stopped
@@ -30,7 +30,7 @@ services:
       - API_ACCESS_KEYS=$API_ACCESS_KEYS
 
     command: >
-      bash -c "python neurons/validator.py --netuid 155 --subtensor.network test --wallet.name testkey --wallet.hotkey hkey4 --logging.debug"
+      bash -c "python neurons/validator.py --netuid 155 --subtensor.network test --wallet.name testkey --wallet.hotkey hkey4 --db.directory /root/infinite_games/database --logging.debug"
 
     logging:
       driver: "json-file"

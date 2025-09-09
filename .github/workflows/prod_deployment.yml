@@ -33,11 +33,11 @@ jobs:
           cd /root/if-games-validator
           git pull --rebase
           pip install -r requirements.txt
+          cp -r database /root/validator-database
           pm2 delete validator
-          cp validator.db /root/validator-db/validator1.db
           export INLINE_LOGS=1
           export API_ACCESS_KEYS=${{ secrets.API_ACCESS_KEYS_PROD }}
-          pm2 start neurons/validator.py --name validator --interpreter python3 -- --netuid 6 --subtensor.network finney --wallet.name ifkey --wallet.hotkey ifhkey --logging.debug
+          pm2 start neurons/validator.py --name validator --interpreter python3 -- --netuid 6 --subtensor.network finney --wallet.name ifkey --wallet.hotkey ifhkey --db.directory /root/if-games-validator/database --logging.debug
           EOF
 
   discord_alerts:
