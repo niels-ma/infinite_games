@@ -149,8 +149,22 @@ class TestDbClient:
 
             assert table is not None  # Check table was created
 
+    async def test_journal_mode(self, db_client: DatabaseClient):
+        await db_client.migrate()
+
+        response = await db_client.one("PRAGMA journal_mode")
+
+        # Assert WAL mode
+        assert response[0] == "wal"
+
     async def test_foreign_keys_on(self, db_client: DatabaseClient):
         response = await db_client.one("PRAGMA foreign_keys")
 
         # Assert foreign keys is on
+        assert response[0] == 1
+
+    async def test_synchronous_setting(self, db_client: DatabaseClient):
+        response = await db_client.one("PRAGMA synchronous")
+
+        # Assert synchronous setting to NORMAL
         assert response[0] == 1

@@ -44,6 +44,7 @@ class DatabaseClient:
 
             # Needed for each connection
             await connection.execute("PRAGMA foreign_keys = ON")
+            await connection.execute("PRAGMA synchronous = NORMAL")
 
             query_start_time = time.time()
 

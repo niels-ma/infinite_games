@@ -30,3 +30,6 @@ ARG GIT_COMMIT_HASH
 ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
 
 COPY . /root/infinite_games
+
+# Folder for DB files
+RUN mkdir -p /root/infinite_games/database
