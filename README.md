@@ -1,6 +1,5 @@
 <div align="center">
 
-<img src="docs/infinite-games.jpeg" alt="Project Logo" width="200"/>
 
 # **Infinite Games** 
 
