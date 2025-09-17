@@ -265,7 +265,7 @@ class QueryMiners(AbstractTask):
         axons_uids = list(axons_by_uid.keys())
 
         for uid, response in zip(axons_uids, responses):
-            if not response.is_success:
+            if response.is_success is not True:
                 self.logger.debug(
                     "Miner response error",
                     extra={
@@ -278,6 +278,8 @@ class QueryMiners(AbstractTask):
                         "dendrite_status_message": response.dendrite.status_message,
                     },
                 )
+
+                continue
 
             responses_by_uid[uid] = response
 

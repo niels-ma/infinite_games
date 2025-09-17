@@ -395,14 +395,24 @@ class TestQueryMiners:
         ]
 
     async def test_query_neurons(self, query_miners_task: QueryMiners, monkeypatch):
-        synapse = MagicMock(model_copy=MagicMock())
-
         axons_by_uid = {
             "1": MagicMock(spec=AxonInfo, hotkey="hotkey_1"),
             "50": MagicMock(spec=AxonInfo, hotkey="hotkey_50"),
+            # Miner with invalid response
+            "60": MagicMock(spec=AxonInfo, hotkey="hotkey_60"),
         }
 
-        query_miners_task.dendrite.call = AsyncMock(return_value=synapse)
+        def side_effect(*args, **kwargs):
+            axon: ExtendedAxonInfo = kwargs.get("target_axon")
+            synapse = EventPredictionSynapse(events={})
+
+            if axon.hotkey != "hotkey_60":
+                # Make synapse.is_success return true
+                synapse.dendrite.status_code = 200
+
+            return synapse
+
+        query_miners_task.dendrite.call = AsyncMock(side_effect=side_effect)
 
         iterator_called = False
 
@@ -417,16 +427,23 @@ class TestQueryMiners:
             "neurons.validator.tasks.query_miners.async_iterator", fake_async_iterator
         )
 
-        response = await query_miners_task.query_neurons(axons_by_uid=axons_by_uid, synapse=synapse)
+        request_synapse = MagicMock(model_copy=MagicMock())
+        response = await query_miners_task.query_neurons(
+            axons_by_uid=axons_by_uid, synapse=request_synapse
+        )
 
         # Assertions
         assert len(response) == 2
-        assert response["1"] == synapse
-        assert response["50"] == synapse
+        assert response["1"] is not None
+        assert response["50"] is not None
+        assert response.get("60", None) is None
+
+        assert isinstance(response["1"], EventPredictionSynapse) is True
+        assert isinstance(response["50"], EventPredictionSynapse) is True
 
         assert iterator_called is True
-        assert synapse.model_copy.call_count == 2
-        assert query_miners_task.dendrite.call.await_count == 2
+        assert request_synapse.model_copy.call_count == 3
+        assert query_miners_task.dendrite.call.await_count == 3
 
     async def test_store_miners(self, db_client: DatabaseClient, query_miners_task: QueryMiners):
         block = 12345
@@ -666,7 +683,7 @@ class TestQueryMiners:
             ),
         ]
 
-    async def test_run(
+    async def test_run_aaa(
         self,
         db_client: DatabaseClient,
         db_operations: DatabaseOperations,
@@ -746,6 +763,9 @@ class TestQueryMiners:
             for _, event in synapse.events.items():
                 event.probability = 0.8
                 event.reasoning = "Test reasoning"
+
+            # Make synapse.is_success return true
+            synapse.dendrite.status_code = 200
 
             return synapse
 

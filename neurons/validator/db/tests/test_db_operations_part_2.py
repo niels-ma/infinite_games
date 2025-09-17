@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from unittest.mock import ANY
 
 import pytest
 
@@ -330,6 +331,147 @@ class TestDbOperationsPart2(TestDbOperationsBase):
         assert last_metagraph_scores[2].miner_uid == 5
         assert last_metagraph_scores[2].miner_hotkey == "hk5"
         assert last_metagraph_scores[2].metagraph_score == 0.0
+
+    async def test_get_last_alternative_metagraph_scores(
+        self, db_operations: DatabaseOperations, db_client: DatabaseClient
+    ):
+        created_at = datetime.now(timezone.utc) - timedelta(days=1)
+        scores_list = [
+            ScoresModel(
+                event_id="expected_event_id_1",
+                miner_uid=3,
+                miner_hotkey="hk3",
+                prediction=0.75,
+                event_score=0.80,
+                alternative_metagraph_score=1.0,
+                created_at=created_at,
+                spec_version=1,
+                alternative_processed=True,
+            ),
+            ScoresModel(
+                event_id="expected_event_id_2",
+                miner_uid=3,
+                miner_hotkey="hk3",
+                prediction=0.75,
+                event_score=0.40,
+                alternative_metagraph_score=0.9,
+                created_at=created_at,
+                spec_version=1,
+                alternative_processed=True,
+            ),
+            ScoresModel(
+                event_id="expected_event_id_3",
+                miner_uid=3,
+                miner_hotkey="hk3",
+                prediction=0.75,
+                event_score=0.60,
+                alternative_metagraph_score=0.835,
+                created_at=created_at,
+                spec_version=1,
+                alternative_processed=True,
+            ),
+            ScoresModel(
+                event_id="expected_event_id_2",
+                miner_uid=4,
+                miner_hotkey="hk4",
+                prediction=0.75,
+                event_score=0.40,
+                alternative_metagraph_score=0.1,
+                created_at=created_at,
+                spec_version=1,
+                alternative_processed=True,
+            ),
+            ScoresModel(
+                event_id="expected_event_id_1",
+                miner_uid=4,
+                miner_hotkey="hk4",
+                prediction=0.75,
+                event_score=0.40,
+                alternative_metagraph_score=0.165,
+                created_at=created_at,
+                spec_version=1,
+                alternative_processed=True,
+            ),
+            ScoresModel(
+                event_id="expected_event_id_2",
+                miner_uid=5,
+                miner_hotkey="hk5",
+                prediction=0.75,
+                event_score=-0.40,
+                alternative_metagraph_score=0.0,
+                created_at=created_at,
+                spec_version=1,
+                alternative_processed=True,
+            ),
+        ]
+        # insert scores
+        sql = f"""
+            INSERT INTO scores ({', '.join(SCORE_FIELDS)})
+            VALUES ({', '.join(['?'] * len(SCORE_FIELDS))})
+        """
+        score_tuples = [
+            tuple(getattr(score, field) for field in SCORE_FIELDS) for score in scores_list
+        ]
+        await db_client.insert_many(sql, score_tuples)
+
+        inserted_scores = await db_client.many("SELECT * FROM scores")
+        assert len(inserted_scores) == len(scores_list)
+
+        # get last alternative metagraph scores
+        last_alternative_metagraph_scores = (
+            await db_operations.get_last_alternative_metagraph_scores()
+        )
+
+        assert [score.model_dump() for score in last_alternative_metagraph_scores] == [
+            {
+                "alternative_metagraph_score": 0.835,
+                "alternative_other_data": None,
+                "alternative_processed": True,
+                "created_at": ANY,
+                "event_id": "expected_event_id_3",
+                "event_score": 0.6,
+                "exported": False,
+                "metagraph_score": None,
+                "miner_hotkey": "hk3",
+                "miner_uid": 3,
+                "other_data": None,
+                "prediction": 0.75,
+                "processed": False,
+                "spec_version": 1,
+            },
+            {
+                "alternative_metagraph_score": 0.165,
+                "alternative_other_data": None,
+                "alternative_processed": True,
+                "created_at": ANY,
+                "event_id": "expected_event_id_1",
+                "event_score": 0.4,
+                "exported": False,
+                "metagraph_score": None,
+                "miner_hotkey": "hk4",
+                "miner_uid": 4,
+                "other_data": None,
+                "prediction": 0.75,
+                "processed": False,
+                "spec_version": 1,
+            },
+            {
+                "alternative_metagraph_score": 0.0,
+                "alternative_other_data": None,
+                "alternative_processed": True,
+                "created_at": ANY,
+                "event_id": "expected_event_id_2",
+                "event_score": -0.4,
+                "exported": False,
+                "metagraph_score": None,
+                "miner_hotkey": "hk5",
+                "miner_uid": 5,
+                "other_data": None,
+                "prediction": 0.75,
+                "processed": False,
+                "spec_version": 1,
+            },
+        ]
 
     async def test_mark_event_as_discarded(self, db_operations, db_client):
         now = datetime.now(timezone.utc)

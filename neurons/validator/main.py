@@ -9,10 +9,6 @@ from neurons.validator.api.api import API
 from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.if_games.client import IfGamesClient
-from neurons.validator.sandbox.alternative_scoring.cluster_selector import ClusterSelector
-from neurons.validator.sandbox.alternative_scoring.metagraph_scoring_alternative import (
-    MetagraphScoringAlternative,
-)
 from neurons.validator.scheduler.tasks_scheduler import TasksScheduler
 from neurons.validator.tasks.db_cleaner import DbCleaner
 from neurons.validator.tasks.db_vacuum import DbVacuum
@@ -20,12 +16,14 @@ from neurons.validator.tasks.delete_events import DeleteEvents
 from neurons.validator.tasks.export_predictions import ExportPredictions
 from neurons.validator.tasks.export_scores import ExportScores
 from neurons.validator.tasks.metagraph_scoring import MetagraphScoring
+from neurons.validator.tasks.metagraph_scoring_alternative import MetagraphScoringAlternative
 from neurons.validator.tasks.peer_scoring import PeerScoring
 from neurons.validator.tasks.pull_events import PullEvents
 from neurons.validator.tasks.query_miners import QueryMiners
 from neurons.validator.tasks.resolve_events import ResolveEvents
 from neurons.validator.tasks.set_weights import SetWeights
 from neurons.validator.tasks.train_cp_model import TrainCommunityPredictionModel
+from neurons.validator.utils.cluster_selector.cluster_selector import ClusterSelector
 from neurons.validator.utils.common.event_loop import measure_event_loop_lag
 from neurons.validator.utils.config import get_config
 from neurons.validator.utils.env import ENVIRONMENT_VARIABLES, assert_requirements
@@ -136,7 +134,7 @@ async def main():
     )
 
     metagraph_scoring_alternative_task = MetagraphScoringAlternative(
-        interval_seconds=1799.0,
+        interval_seconds=1199.0,
         cluster_selector_cls=ClusterSelector,
         db_operations=db_operations,
         metagraph=bt_metagraph,

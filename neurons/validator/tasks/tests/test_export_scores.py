@@ -97,7 +97,7 @@ class TestExportScores:
             miner_hotkey="hk1",
             prediction=0.95,
             event_score=0.90,
-            metagraph_score=1.0,
+            alternative_metagraph_score=1.0,
             other_data='{"extra": "data"}',
             spec_version=1,
             created_at=now,
@@ -120,7 +120,7 @@ class TestExportScores:
             miner_hotkey=score.miner_hotkey,
             miner_uid=score.miner_uid,
             miner_score=score.event_score,
-            miner_effective_score=score.metagraph_score,
+            miner_effective_score=score.alternative_metagraph_score,
             validator_hotkey=export_scores_task.validator_hotkey,
             validator_uid=export_scores_task.validator_uid,
             spec_version="1039",
@@ -214,12 +214,12 @@ class TestExportScores:
 
         await db_operations.insert_peer_scores([score])
         await db_client.update(
-            "UPDATE scores SET processed = ?",
+            "UPDATE scores SET alternative_processed = ?",
             [
                 1,
             ],
         )
-        unit.db_operations.get_peer_scores_for_export = AsyncMock(return_value=[])
+        unit.db_operations.get_peer_scores_for_export_alternative = AsyncMock(return_value=[])
 
         await unit.run()
         unit.logger.warning.assert_called_with(
@@ -238,7 +238,7 @@ class TestExportScores:
     ):
         unit = export_scores_task
         unit.api_client.post_scores = AsyncMock(return_value=True)
-        unit.db_operations.get_peer_scores_for_export = AsyncMock(return_value=[])
+        unit.db_operations.get_peer_scores_for_export_alternative = AsyncMock(return_value=[])
 
         event = sample_event
         await db_operations.upsert_events([event])
@@ -255,7 +255,7 @@ class TestExportScores:
         await db_operations.insert_peer_scores([score])
 
         await db_client.update(
-            "UPDATE scores SET processed = ?",
+            "UPDATE scores SET alternative_processed = ?",
             [
                 1,
             ],
@@ -297,7 +297,7 @@ class TestExportScores:
 
         await db_operations.insert_peer_scores([score])
         await db_client.update(
-            "UPDATE scores SET processed = ?, metagraph_score = ?, other_data = ?",
+            "UPDATE scores SET alternative_processed = ?, alternative_metagraph_score = ?, alternative_other_data = ?",
             [
                 1,
                 1.0,
@@ -352,7 +352,7 @@ class TestExportScores:
 
         await db_operations.insert_peer_scores([score_1, score_2, score_3])
         await db_client.update(
-            "UPDATE scores SET processed = ?, metagraph_score = ?, other_data = ?",
+            "UPDATE scores SET alternative_processed = ?, alternative_metagraph_score = ?, alternative_other_data = ?",
             [
                 1,
                 1.0,

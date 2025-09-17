@@ -40,7 +40,7 @@ class DatabaseClient:
         connection = None
 
         try:
-            connection = await aiosqlite.connect(self.__db_path, timeout=180)
+            connection = await aiosqlite.connect(self.__db_path, timeout=30.0)
 
             # Needed for each connection
             await connection.execute("PRAGMA foreign_keys = ON")

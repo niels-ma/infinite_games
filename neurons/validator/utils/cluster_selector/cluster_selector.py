@@ -85,49 +85,64 @@ class ClusterSelector:
         ll = log_loss(y, p, labels=[0, 1])
         return pd.Series({"scaled_log_loss": ll})
 
-    def calculate_selected_clusters_credits(self) -> pd.DataFrame:
-        """Run the full pipeline and return ``selected_clusters_credit``."""
+    @staticmethod
+    def prepare_events_predictions(
+        ranked_predictions: pd.DataFrame,
+        internal_forecasts: pd.DataFrame,
+        prediction_round_digits: int,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        rp = ranked_predictions
+        im = internal_forecasts
 
-        # -------------------------------------------------------------
-        # 1. Prepare *recent* predictions with an internal forecaster
-        # -------------------------------------------------------------
-        rp = self.ranked_predictions
-        im = self.internal_forecasts
+        events = rp[["event_id", "event_rank", "outcome"]].drop_duplicates()
 
-        recent_events = rp[["event_id", "event_rank", "outcome"]].drop_duplicates()
-
-        events_if = recent_events.merge(im, how="left", on="event_id")
+        # Build internal forecaster rows and align schema
+        events_if = events.merge(im, how="left", on="event_id")
         events_if["miner_uid"] = 1000
         events_if["miner_hotkey"] = "internal_forecaster"
-        events_if.fillna(0.5, inplace=True)
-        events_if = events_if[rp.columns]  # enforce same column order
+        events_if["prediction"] = events_if["prediction"].astype(float).fillna(0.5)
+        events_if = events_if[rp.columns]
 
-        recent = pd.concat([rp, events_if], axis=0)
+        # Combine miner predictions and internal forecaster
+        events_predictions = pd.concat([rp, events_if], axis=0)
 
-        # ensure cartesian completeness (every miner × event)
-        miners = recent[["miner_uid", "miner_hotkey"]].drop_duplicates()
-        recent = recent_events.merge(miners, how="cross").merge(
-            recent,
+        # Ensure cartesian completeness (every miner × event)
+        miners = events_predictions[["miner_uid", "miner_hotkey"]].drop_duplicates()
+        events_predictions = events.merge(miners, how="cross").merge(
+            events_predictions,
             how="left",
             on=["event_id", "event_rank", "outcome", "miner_uid", "miner_hotkey"],
         )
-        recent["prediction"] = recent["prediction"].fillna(0.5)
+        events_predictions["prediction"] = events_predictions["prediction"].fillna(0.5)
 
         # Add uniq key to both data sets
-        recent["miner_key"] = recent["miner_hotkey"] + "__" + recent["miner_uid"].astype(str)
-        recent["prediction"] = recent["prediction"].round(self.prediction_round_digits)
-        recent["outcome_num"] = recent["outcome"].astype(int)
-        recent["abs_error"] = (recent["prediction"] - recent["outcome_num"]).abs()
+        events_predictions["miner_key"] = (
+            events_predictions["miner_hotkey"] + "__" + events_predictions["miner_uid"].astype(str)
+        )
+        events_predictions["prediction"] = events_predictions["prediction"].round(
+            prediction_round_digits
+        )
+        events_predictions["outcome_num"] = events_predictions["outcome"].astype(int)
+        events_predictions["abs_error"] = (
+            events_predictions["prediction"] - events_predictions["outcome_num"]
+        ).abs()
 
-        # -------------------------------------------------------------
-        # 2. Build metagraph incl. internal forecaster & cluster miners
-        # -------------------------------------------------------------
-        mg = self.latest_metagraph_neurons.copy()
-        mg.loc[len(mg)] = [1000, "internal_forecaster"]
-        mg["miner_key"] = mg["miner_hotkey"] + "__" + mg["miner_uid"].astype(str)
+        return events_predictions, events
+
+    def cluster_miners(
+        self, events_predictions: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+        metagraph = self.latest_metagraph_neurons.copy()
+
+        metagraph.loc[len(metagraph)] = [1000, "internal_forecaster"]
+        metagraph["miner_key"] = (
+            metagraph["miner_hotkey"] + "__" + metagraph["miner_uid"].astype(str)
+        )
 
         # miners × events error matrix
-        err_mat = recent.pivot_table(index="miner_key", columns="event_id", values="abs_error")
+        err_mat = events_predictions.pivot_table(
+            index="miner_key", columns="event_id", values="abs_error"
+        )
 
         # hierarchical clustering by correlation distance
         dist_vec = pdist(err_mat.values, metric="correlation")
@@ -136,20 +151,41 @@ class ClusterSelector:
         )
         clusters_info = pd.DataFrame({"miner_key": err_mat.index, "cluster_id": labels})
 
-        # Identify internal forecaster clusters
+        # Identify internal forecaster cluster
         ifc_cluster = clusters_info.loc[
             clusters_info["miner_key"] == "internal_forecaster__1000", "cluster_id"
         ].iat[0]
 
         # Keep only current miners in metagraph
-        clusters_info = clusters_info.merge(mg, on="miner_key", how="inner")
+        clusters_info = clusters_info.merge(metagraph, on="miner_key", how="inner")
 
         clusters_info = clusters_info.merge(
             clusters_info.groupby("cluster_id")["miner_key"].nunique().rename("miner_count"),
             on="cluster_id",
         )
 
-        clusters_data = recent.merge(clusters_info, on="miner_key")
+        clusters_data = events_predictions.merge(clusters_info, on="miner_key")
+
+        return clusters_info, clusters_data, ifc_cluster
+
+    def calculate_selected_clusters_credits(self) -> pd.DataFrame:
+        """Run the full pipeline and return ``selected_clusters_credit``."""
+
+        # -------------------------------------------------------------
+        # 1. Prepare *recent* predictions with an internal forecaster
+        # -------------------------------------------------------------
+        events_predictions, events = self.prepare_events_predictions(
+            ranked_predictions=self.ranked_predictions,
+            internal_forecasts=self.internal_forecasts,
+            prediction_round_digits=self.prediction_round_digits,
+        )
+
+        # -------------------------------------------------------------
+        # 2. Build metagraph incl. internal forecaster & cluster miners
+        # -------------------------------------------------------------
+        clusters_info, clusters_data, ifc_cluster = self.cluster_miners(
+            events_predictions=events_predictions
+        )
 
         # -------------------------------------------------------------
         # 3. Representative (medoid) & Platt calibration per cluster
@@ -240,7 +276,7 @@ class ClusterSelector:
         )
         clusters_info = clusters_info.merge(logloss_df, on="cluster_id", how="left")
 
-        p_base = recent_events.outcome.astype(int).mean()
+        p_base = events.outcome.astype(int).mean()
         p_base = 1 - p_base if p_base > 0.5 else p_base
         base_ll = -(p_base * np.log(p_base) + (1 - p_base) * np.log(1 - p_base))
         if_ll = logloss_df.loc[logloss_df["cluster_id"] == ifc_cluster, "scaled_log_loss"].iat[0]
@@ -319,6 +355,18 @@ class ClusterSelector:
             )
             / 10**self.credit_round_digits
         )
+
+        selected_clusters_credit["round_credit_per_miner"] = (
+            selected_clusters_credit["round_credit_per_miner"].fillna(0.0).astype(float)
+        )
+
+        # Remove internal forecaster and its cluster from crediting - it will be burned later
+        is_ifc = selected_clusters_credit["miner_hotkey"].eq("internal_forecaster")
+        # TODO: log.debug the IF credit burn for information
+        # ifc_burn = float(
+        #     selected_clusters_credit.loc[is_ifc, "round_credit_per_miner"].sum()
+        # )
+        selected_clusters_credit = selected_clusters_credit.loc[~is_ifc].copy()
 
         self.selected_clusters_credit = selected_clusters_credit.sort_values(
             "round_credit_per_miner", ascending=False
