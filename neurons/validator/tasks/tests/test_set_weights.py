@@ -6,7 +6,6 @@ import bittensor as bt
 import pandas as pd
 import pytest
 import torch
-import torch.test
 from bittensor.core.metagraph import AsyncMetagraph
 from bittensor_wallet import Wallet
 from freezegun import freeze_time
@@ -133,7 +132,7 @@ class TestSetWeights:
             ScoresModel(
                 miner_uid=1,
                 miner_hotkey="hotkey1",
-                metagraph_score=0.8,
+                alternative_metagraph_score=0.8,
                 event_score=0.9,
                 prediction=0.9,
                 event_id="e1",
@@ -143,7 +142,7 @@ class TestSetWeights:
             ScoresModel(
                 miner_uid=2,
                 miner_hotkey="hotkey2",
-                metagraph_score=None,
+                alternative_metagraph_score=None,
                 event_score=0.7,
                 prediction=0.7,
                 event_id="e2",
@@ -153,7 +152,7 @@ class TestSetWeights:
             ScoresModel(
                 miner_uid=4,
                 miner_hotkey="hotkey4",
-                metagraph_score=0.5,
+                alternative_metagraph_score=0.5,
                 event_score=0.4,
                 prediction=0.4,
                 event_id="e3",
@@ -171,9 +170,9 @@ class TestSetWeights:
         assert filtered_scores.loc[0].miner_hotkey == "hotkey1"
         assert filtered_scores.loc[1].miner_hotkey == "hotkey2"
         assert filtered_scores.loc[2].miner_hotkey == "hotkey3"
-        assert filtered_scores.loc[0].metagraph_score == 0.8
-        assert filtered_scores.loc[1].metagraph_score == 0.0
-        assert filtered_scores.loc[2].metagraph_score == 0.0
+        assert filtered_scores.loc[0].alternative_metagraph_score == 0.8
+        assert filtered_scores.loc[1].alternative_metagraph_score == 0.0
+        assert filtered_scores.loc[2].alternative_metagraph_score == 0.0
 
         expected_stats = {
             "len_last_metagraph_scores": 3,
@@ -198,7 +197,7 @@ class TestSetWeights:
                 {
                     SWNames.miner_uid: [1, 2, 3],
                     SWNames.miner_hotkey: ["hotkey1", "hotkey2", "hotkey3"],
-                    SWNames.metagraph_score: [0.8, 0.9, 1.0],
+                    SWNames.alternative_metagraph_score: [0.8, 0.9, 1.0],
                 },
                 False,
             ),
@@ -207,7 +206,7 @@ class TestSetWeights:
                 {
                     SWNames.miner_uid: [1, 1, 2],
                     SWNames.miner_hotkey: ["hotkey1", "hotkey11111", "hotkey2"],
-                    SWNames.metagraph_score: [0.8, 0.9, 1.0],
+                    SWNames.alternative_metagraph_score: [0.8, 0.9, 1.0],
                 },
                 True,
             ),
@@ -216,7 +215,7 @@ class TestSetWeights:
                 {
                     SWNames.miner_uid: [1, 2, 3],
                     SWNames.miner_hotkey: ["hotkey1", "hotkey2", "hotkey3"],
-                    SWNames.metagraph_score: [0.0, 0.0, 0.0],
+                    SWNames.alternative_metagraph_score: [0.0, 0.0, 0.0],
                 },
                 True,
             ),
@@ -225,7 +224,7 @@ class TestSetWeights:
                 {
                     SWNames.miner_uid: [1, 2, 3],
                     SWNames.miner_hotkey: ["hotkey1", None, "hotkey3"],
-                    SWNames.metagraph_score: [0.8, 0.9, 1.0],
+                    SWNames.alternative_metagraph_score: [0.8, 0.9, 1.0],
                 },
                 True,
             ),
@@ -247,14 +246,14 @@ class TestSetWeights:
         data = {
             SWNames.miner_uid: [1, 2, 3],
             SWNames.miner_hotkey: ["hotkey1", "hotkey2", "hotkey3"],
-            SWNames.metagraph_score: [0.8, 0.9, 1.3],
+            SWNames.alternative_metagraph_score: [0.8, 0.9, 1.3],
         }
         df = pd.DataFrame(data)
         normalized = set_weights_task.renormalize_weights(df)
 
         assert SWNames.raw_weights in normalized.columns
-        total = sum(data[SWNames.metagraph_score])
-        expected = [score / total for score in data[SWNames.metagraph_score]]
+        total = sum(data[SWNames.alternative_metagraph_score])
+        expected = [score / total for score in data[SWNames.alternative_metagraph_score]]
 
         pd.testing.assert_series_equal(
             normalized[SWNames.raw_weights],
@@ -431,10 +430,10 @@ class TestSetWeights:
                 miner_hotkey="hk3",
                 prediction=0.75,
                 event_score=0.80,
-                metagraph_score=1.0,
+                alternative_metagraph_score=1.0,
                 created_at=created_at,
                 spec_version=1,
-                processed=True,
+                alternative_processed=True,
             ),
             ScoresModel(
                 event_id="expected_event_id_2",
@@ -442,10 +441,10 @@ class TestSetWeights:
                 miner_hotkey="hk3",
                 prediction=0.75,
                 event_score=0.40,
-                metagraph_score=0.9,
+                alternative_metagraph_score=0.9,
                 created_at=created_at,
                 spec_version=1,
-                processed=True,
+                alternative_processed=True,
             ),
             ScoresModel(
                 event_id="expected_event_id_3",
@@ -453,10 +452,10 @@ class TestSetWeights:
                 miner_hotkey="hk3",
                 prediction=0.75,
                 event_score=0.60,
-                metagraph_score=0.835,
+                alternative_metagraph_score=0.835,
                 created_at=created_at,
                 spec_version=1,
-                processed=True,
+                alternative_processed=True,
             ),
             ScoresModel(
                 event_id="expected_event_id_2",
@@ -464,10 +463,10 @@ class TestSetWeights:
                 miner_hotkey="hk4",
                 prediction=0.75,
                 event_score=0.40,
-                metagraph_score=0.1,
+                alternative_metagraph_score=0.1,
                 created_at=created_at,
                 spec_version=1,
-                processed=True,
+                alternative_processed=True,
             ),
             ScoresModel(
                 event_id="expected_event_id_1",
@@ -475,10 +474,10 @@ class TestSetWeights:
                 miner_hotkey="hk4",
                 prediction=0.75,
                 event_score=0.40,
-                metagraph_score=0.165,
+                alternative_metagraph_score=0.165,
                 created_at=created_at,
                 spec_version=1,
-                processed=True,
+                alternative_processed=True,
             ),
             ScoresModel(
                 event_id="expected_event_id_2",
@@ -486,10 +485,10 @@ class TestSetWeights:
                 miner_hotkey="hk5",
                 prediction=0.75,
                 event_score=-0.40,
-                metagraph_score=0.0,
+                alternative_metagraph_score=0.0,
                 created_at=created_at,
                 spec_version=1,
-                processed=True,
+                alternative_processed=True,
             ),
         ]
         # insert scores

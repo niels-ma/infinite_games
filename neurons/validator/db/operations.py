@@ -875,6 +875,43 @@ class DatabaseOperations:
 
         return events
 
+    async def get_peer_scored_events_for_export_alternative(
+        self, max_events: int = 1000
+    ) -> list[EventsModel]:
+        """
+        Get peer scored events that have not been exported
+        """
+        ev_event_fields = ["ev." + field for field in EVENTS_FIELDS]
+        rows = await self.__db_client.many(
+            f"""
+                WITH events_to_export AS (
+                    SELECT
+                        event_id,
+                        MIN(ROWID) AS min_row_id
+                    FROM scores
+                    WHERE alternative_processed = 1
+                        AND exported = ?
+                    GROUP BY event_id
+                    ORDER BY min_row_id ASC
+                    LIMIT ?
+                )
+                SELECT
+                    {', '.join(ev_event_fields)}
+                FROM events ev
+                JOIN events_to_export ete ON ev.event_id = ete.event_id
+                ORDER BY ete.min_row_id ASC
+            """,
+            use_row_factory=True,
+            parameters=[
+                ScoresExportedStatus.NOT_EXPORTED,
+                max_events,
+            ],
+        )
+
+        events = self._parse_rows(model=EventsModel, rows=rows)
+
+        return events
+
     async def get_peer_scores_for_export(self, event_id: str) -> list:
         """
         Get peer scores for a given event
@@ -887,6 +924,27 @@ class DatabaseOperations:
                 FROM scores
                 WHERE event_id = ?
                     AND processed = 1
+            """,
+            parameters=[event_id],
+            use_row_factory=True,
+        )
+
+        scores = self._parse_rows(model=ScoresModel, rows=rows)
+
+        return scores
+
+    async def get_peer_scores_for_export_alternative(self, event_id: str) -> list:
+        """
+        Get peer scores for a given event
+        Processed has to be true, to guarantee that metagraph score is set
+        """
+        rows = await self.__db_client.many(
+            f"""
+                SELECT
+                    {', '.join(SCORE_FIELDS)}
+                FROM scores
+                WHERE event_id = ?
+                    AND alternative_processed = 1
             """,
             parameters=[event_id],
             use_row_factory=True,
@@ -942,6 +1000,38 @@ class DatabaseOperations:
                         MAX(ROWID) AS max_rowid
                     FROM scores
                     WHERE processed = 1
+                        AND created_at > datetime(CURRENT_TIMESTAMP, '-10 day')
+                    GROUP BY miner_uid, miner_hotkey
+                )
+                SELECT
+                    {', '.join(SCORE_FIELDS)}
+                FROM scores s
+                JOIN grouped
+                    ON s.miner_uid = grouped.g_miner_uid
+                    AND s.miner_hotkey = grouped.g_miner_hotkey
+                    AND s.ROWID = grouped.max_rowid
+            """,
+            use_row_factory=True,
+        )
+
+        scores = self._parse_rows(model=ScoresModel, rows=rows)
+
+        return scores
+
+    async def get_last_alternative_metagraph_scores(self) -> list:
+        """
+        Returns the last known metagraph_score for each miner_uid, miner_hotkey;
+        We cannot simply take from the last event - could be an old event scored now, so
+        if the miner registered after the event cutoff, we will have no metagraph_score
+        """
+        rows = await self.__db_client.many(
+            f"""
+                WITH grouped AS (
+                    SELECT miner_uid AS g_miner_uid,
+                        miner_hotkey AS g_miner_hotkey,
+                        MAX(ROWID) AS max_rowid
+                    FROM scores
+                    WHERE alternative_processed = 1
                         AND created_at > datetime(CURRENT_TIMESTAMP, '-10 day')
                     GROUP BY miner_uid, miner_hotkey
                 )

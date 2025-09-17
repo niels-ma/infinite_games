@@ -12,11 +12,9 @@ from neurons.validator.db.client import DatabaseClient
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.models.event import EventsModel, EventStatus
 from neurons.validator.models.score import AlternativeMetagraphScore
-from neurons.validator.sandbox.alternative_scoring.cluster_selector import ClusterSelector
-from neurons.validator.sandbox.alternative_scoring.metagraph_scoring_alternative import (
-    MetagraphScoringAlternative,
-)
+from neurons.validator.tasks.metagraph_scoring_alternative import MetagraphScoringAlternative
 from neurons.validator.tasks.peer_scoring import PeerScoring
+from neurons.validator.utils.cluster_selector.cluster_selector import ClusterSelector
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 

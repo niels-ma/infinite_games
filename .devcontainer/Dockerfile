@@ -10,11 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     libpq-dev \
     awscli \
-    && apt-get remove -y libsqlite3-0 \
-    && wget http://snapshot.debian.org/archive/debian/20220226T215647Z/pool/main/s/sqlite3/libsqlite3-0_3.37.2-2_amd64.deb \
-    && dpkg -i libsqlite3-0_3.37.2-2_amd64.deb \
-    && apt-mark hold libsqlite3-0 \
-    && rm -f libsqlite3-0_3.37.2-2_amd64.deb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

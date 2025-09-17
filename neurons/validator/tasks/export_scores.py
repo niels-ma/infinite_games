@@ -66,7 +66,7 @@ class ExportScores(AbstractTask):
                 miner_hotkey=db_score.miner_hotkey,
                 miner_uid=db_score.miner_uid,
                 miner_score=db_score.event_score,
-                miner_effective_score=db_score.metagraph_score,
+                miner_effective_score=db_score.alternative_metagraph_score,
                 validator_hotkey=self.validator_hotkey,
                 validator_uid=self.validator_uid,
                 spec_version=backend_spec_version,
@@ -90,7 +90,7 @@ class ExportScores(AbstractTask):
         )
 
     async def run(self):
-        scored_events = await self.db_operations.get_peer_scored_events_for_export(
+        scored_events = await self.db_operations.get_peer_scored_events_for_export_alternative(
             max_events=self.page_size
         )
         if not scored_events:
@@ -102,7 +102,7 @@ class ExportScores(AbstractTask):
             )
 
             for event in scored_events:
-                scores = await self.db_operations.get_peer_scores_for_export(
+                scores = await self.db_operations.get_peer_scores_for_export_alternative(
                     event_id=event.event_id
                 )
                 if not len(scores) > 0:

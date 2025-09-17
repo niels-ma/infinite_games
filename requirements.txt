@@ -5,8 +5,8 @@ aiosqlite==0.20.0
 alembic==1.14.1
 anthropic==0.28.0
 backoff==2.2.1
-bittensor-cli==9.10.1
-bittensor==9.9.0
+bittensor-cli==9.10.2
+bittensor==9.10.1
 fastapi==0.110.3
 forecasting-tools==0.2.12
 gnews==0.3.7

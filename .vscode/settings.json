@@ -36,6 +36,7 @@
     "netuid",
     "Opentensor",
     "polymarket",
+    "Precog",
     "pydatetime",
     "pytest",
     "PYTHONPATH",
@@ -53,5 +54,7 @@
   ],
   "python.languageServer": "Pylance",
   "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true
+  "python.testing.pytestEnabled": true,
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python-envs.pythonProjects": []
 }

@@ -42,7 +42,7 @@ def assert_requirements():
         )
 
     # Assert SQLite version
-    MIN_SQLITE_VERSION = (3, 37, 0)
+    MIN_SQLITE_VERSION = (3, 40, 0)
 
     system_sqlite_version = tuple(map(int, sqlite_version.split(".")))
 
