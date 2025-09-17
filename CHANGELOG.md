@@ -1,5 +1,10 @@
 # Release Notes
 
+## [1.6.1] - 2025-09-16
+- **Database**: Enforce SQLite version 3.40.1 as minimum
+- **Bittensor Upgrade**: Upgraded to Bittensor version 9.10.1
+- **Scoring**: Enable Precog Index scoring
+
 ## [1.6.0] - 2025-09-09
 - **Database**: Enable WAL mode
 - **Miners Querying**: Remove duplicate IP miners filter

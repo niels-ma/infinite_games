@@ -8,7 +8,11 @@
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "features": {
-      "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+      "ghcr.io/devcontainers/features/docker-from-docker:1": {
+        "moby": false,
+        "installDockerBuildx": false,
+        "installDockerComposeSwitch": false
+      },
       "ghcr.io/devcontainers/features/sshd:1": {
         "version": "latest"
       }

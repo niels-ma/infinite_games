@@ -960,6 +960,38 @@ class DatabaseOperations:
 
         return scores
 
+    async def get_last_alternative_metagraph_scores(self) -> list:
+        """
+        Returns the last known metagraph_score for each miner_uid, miner_hotkey;
+        We cannot simply take from the last event - could be an old event scored now, so
+        if the miner registered after the event cutoff, we will have no metagraph_score
+        """
+        rows = await self.__db_client.many(
+            f"""
+                WITH grouped AS (
+                    SELECT miner_uid AS g_miner_uid,
+                        miner_hotkey AS g_miner_hotkey,
+                        MAX(ROWID) AS max_rowid
+                    FROM scores
+                    WHERE alternative_processed = 1
+                        AND created_at > datetime(CURRENT_TIMESTAMP, '-10 day')
+                    GROUP BY miner_uid, miner_hotkey
+                )
+                SELECT
+                    {', '.join(SCORE_FIELDS)}
+                FROM scores s
+                JOIN grouped
+                    ON s.miner_uid = grouped.g_miner_uid
+                    AND s.miner_hotkey = grouped.g_miner_hotkey
+                    AND s.ROWID = grouped.max_rowid
+            """,
+            use_row_factory=True,
+        )
+
+        scores = self._parse_rows(model=ScoresModel, rows=rows)
+
+        return scores
+
     async def vacuum_database(self, pages: int):
         await self.__db_client.script(f"PRAGMA incremental_vacuum({pages})")
 

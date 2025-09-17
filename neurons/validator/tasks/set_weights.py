@@ -24,7 +24,7 @@ class SWNames:
     miner_uid: str = "miner_uid"
     miner_hotkey: str = "miner_hotkey"
     event_score: str = "event_score"
-    metagraph_score: str = "metagraph_score"
+    alternative_metagraph_score: str = "alternative_metagraph_score"
     event_id: str = "event_id"
     spec_version_name: str = "spec_version"
     created_at: str = "created_at"
@@ -148,7 +148,9 @@ class SetWeights(AbstractTask):
             "len_last_metagraph_scores": len(last_metagraph_scores),
             "len_filtered_scores": len(filtered_scores),
             "len_current_miners": len(self.current_miners_df),
-            "len_valid_meta_scores": len(filtered_scores.dropna(subset=[SWNames.metagraph_score])),
+            "len_valid_meta_scores": len(
+                filtered_scores.dropna(subset=[SWNames.alternative_metagraph_score])
+            ),
             "len_valid_event_scores": len(filtered_scores.dropna(subset=[SWNames.event_score])),
             "distinct_events": len(filtered_scores[SWNames.event_id].unique()),
             "distinct_spec_version": len(filtered_scores[SWNames.spec_version_name].unique()),
@@ -157,17 +159,17 @@ class SetWeights(AbstractTask):
         self.logger.debug("Stats for filter last scores", extra=stats)
 
         filtered_scores = filtered_scores[
-            [SWNames.miner_uid, SWNames.miner_hotkey, SWNames.metagraph_score]
+            [SWNames.miner_uid, SWNames.miner_hotkey, SWNames.alternative_metagraph_score]
         ]
         data_types = {
             SWNames.miner_uid: "int",
             SWNames.miner_hotkey: "str",
-            SWNames.metagraph_score: "float",
+            SWNames.alternative_metagraph_score: "float",
         }
         filtered_scores = filtered_scores.astype(data_types)
-        filtered_scores[SWNames.metagraph_score] = filtered_scores[SWNames.metagraph_score].fillna(
-            0.0
-        )
+        filtered_scores[SWNames.alternative_metagraph_score] = filtered_scores[
+            SWNames.alternative_metagraph_score
+        ].fillna(0.0)
 
         return filtered_scores
 
@@ -187,13 +189,13 @@ class SetWeights(AbstractTask):
 
         # metagraph scores should not be all 0.0
         assert (
-            not filtered_scores[SWNames.metagraph_score].eq(0.0).all()
+            not filtered_scores[SWNames.alternative_metagraph_score].eq(0.0).all()
         ), "All metagraph_scores are 0.0. This is not expected."
 
         # metagraph scores should not sum up to 0.0
         # redundant, they are positive and not all 0.0
         assert (
-            not filtered_scores[SWNames.metagraph_score].sum() == 0.0
+            not filtered_scores[SWNames.alternative_metagraph_score].sum() == 0.0
         ), "The sum of metagraph_scores is 0.0."
 
         # no NaNs/nulls in filtered_scores in any column
@@ -206,9 +208,9 @@ class SetWeights(AbstractTask):
         normalized_scores = filtered_scores.copy()
 
         # normalize the metagraph scores - guaranteed that sum is strictly positive
-        normalized_scores[SWNames.raw_weights] = normalized_scores[SWNames.metagraph_score].div(
-            normalized_scores[SWNames.metagraph_score].sum()
-        )
+        normalized_scores[SWNames.raw_weights] = normalized_scores[
+            SWNames.alternative_metagraph_score
+        ].div(normalized_scores[SWNames.alternative_metagraph_score].sum())
 
         # for debug, log top 5 and bottom 5 miners by raw_weights
         top_5 = normalized_scores.nlargest(5, SWNames.raw_weights)
@@ -218,7 +220,7 @@ class SetWeights(AbstractTask):
             extra={
                 "top_5": top_5.to_dict(),
                 "bottom_5": bottom_5.to_dict(),
-                "sum_scores": normalized_scores[SWNames.metagraph_score].sum(),
+                "sum_scores": normalized_scores[SWNames.alternative_metagraph_score].sum(),
             },
         )
 
@@ -336,11 +338,15 @@ class SetWeights(AbstractTask):
         if not can_set_weights:
             return
 
-        last_metagraph_scores = await self.db_operations.get_last_metagraph_scores()
-        if last_metagraph_scores is None:
+        last_alternative_metagraph_scores = (
+            await self.db_operations.get_last_alternative_metagraph_scores()
+        )
+
+        if last_alternative_metagraph_scores is None:
             raise ValueError("Failed to get the last metagraph scores.")
 
-        filtered_scores = self.filter_last_scores(last_metagraph_scores)
+        filtered_scores = self.filter_last_scores(last_alternative_metagraph_scores)
+
         self.check_scores_sanity(filtered_scores)
 
         normalized_scores = self.renormalize_weights(filtered_scores)

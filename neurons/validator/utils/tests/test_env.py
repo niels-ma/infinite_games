@@ -33,9 +33,9 @@ class TestEnv:
     @pytest.mark.parametrize(
         "sqlite_version,should_pass",
         [
-            ("3.37.0", True),  # Minimum version - should pass
-            ("3.39.0", True),  # Higher version - should pass
-            ("3.36.0", False),  # Too low version - should fail
+            ("3.40.0", True),  # Minimum version - should pass
+            ("3.41.0", True),  # Higher version - should pass
+            ("3.39.0", False),  # Too low version - should fail
             ("4.0.0", False),  # Wrong major version - should fail
             ("2.0.0", False),  # Wrong major version - should fail
         ],
@@ -79,7 +79,7 @@ class TestEnv:
     def test_successful_requirements_check(self):
         # Test when all requirements are met
         version_info = (3, 11, 0)
-        sqlite_version = "3.37.0"
+        sqlite_version = "3.40.0"
         free_space = 6 * 1024 * 1024 * 1024
 
         with (
@@ -89,4 +89,4 @@ class TestEnv:
         ):
             result = assert_requirements()
 
-            assert result == {"python_version": "3.11.0", "sqlite_version": "3.37.0"}
+            assert result == {"python_version": "3.11.0", "sqlite_version": "3.40.0"}

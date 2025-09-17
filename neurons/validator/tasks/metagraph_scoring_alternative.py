@@ -8,9 +8,9 @@ from bittensor.core.metagraph import AsyncMetagraph
 
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.models.score import AlternativeMetagraphScore
-from neurons.validator.sandbox.alternative_scoring.cluster_selector import ClusterSelector
 from neurons.validator.scheduler.task import AbstractTask
 from neurons.validator.tasks.peer_scoring import PeerScoring
+from neurons.validator.utils.cluster_selector.cluster_selector import ClusterSelector
 from neurons.validator.utils.common.converters import torch_or_numpy_to_int
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
