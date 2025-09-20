@@ -37,7 +37,7 @@ class ClusterSelector:
         ranked_predictions: pd.DataFrame,
         latest_metagraph_neurons: pd.DataFrame,
         internal_forecasts: pd.DataFrame,
-        metagraph_block: int,
+        random_seed: int,
     ) -> None:
         # Core data
         self.ranked_predictions = ranked_predictions.copy()
@@ -48,7 +48,7 @@ class ClusterSelector:
         self.prediction_round_digits = PREDICTION_ROUND_DIGITS
         self.miscorrelation_ro = MISCORRELATION_RO
         self.std_threshold = STD_THRESHOLD
-        self.random_seed = metagraph_block
+        self.random_seed = random_seed
         self.copy_miner_penalty_pow = COPY_MINER_PENALTY_POW
         self.credit_round_digits = CREDIT_ROUND_DIGITS
         self.n_bags = 10

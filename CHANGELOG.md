@@ -1,5 +1,8 @@
 # Release Notes
 
+## [1.6.2] - 2025-09-20
+- **Scoring**: Consistent random seed across validators for Precog Index
+
 ## [1.6.1] - 2025-09-16
 - **Database**: Enforce SQLite version 3.40.1 as minimum
 - **Bittensor Upgrade**: Upgraded to Bittensor version 9.10.1

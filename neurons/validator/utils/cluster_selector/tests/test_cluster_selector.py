@@ -35,7 +35,7 @@ class TestClusterSelector:
             ranked_predictions=pd.DataFrame(),
             latest_metagraph_neurons=pd.DataFrame(),
             internal_forecasts=pd.DataFrame(),
-            metagraph_block=0,
+            random_seed=0,
         )
         events_predictions, events = unit.prepare_events_predictions(
             ranked_predictions=ranked_predictions,
@@ -256,7 +256,7 @@ class TestClusterSelector:
             ranked_predictions=ranked_predictions,
             latest_metagraph_neurons=latest_metagraph_neurons,
             internal_forecasts=internal_forecasts,
-            metagraph_block=123,
+            random_seed=123,
         )
 
         # Cluster miners

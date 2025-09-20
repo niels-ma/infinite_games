@@ -87,9 +87,8 @@ class MetagraphScoringAlternative(AbstractTask):
 
         (
             metagraph_neurons,
-            metagraph_block,
             owner,
-        ) = await self.get_metagraph_neurons_block_and_owner()
+        ) = await self.get_metagraph_neurons_and_owner()
 
         ranked_predictions = await self.get_ranked_predictions()
 
@@ -100,7 +99,7 @@ class MetagraphScoringAlternative(AbstractTask):
             ranked_predictions=ranked_predictions,
             latest_metagraph_neurons=metagraph_neurons,
             internal_forecasts=internal_forecasts,
-            metagraph_block=metagraph_block,
+            random_seed=count_events_to_process,
         )
 
         selected_clusters_credits = await asyncio.to_thread(
@@ -117,7 +116,7 @@ class MetagraphScoringAlternative(AbstractTask):
 
         await self.db_operations.mark_scores_as_alternative_processed_where_not_processed()
 
-    async def get_metagraph_neurons_block_and_owner(self):
+    async def get_metagraph_neurons_and_owner(self):
         await self.metagraph.sync(lite=True)
 
         neurons = []
@@ -135,11 +134,10 @@ class MetagraphScoringAlternative(AbstractTask):
                 owner_uid = int_uid
 
         neurons = pd.DataFrame(neurons, columns=["miner_uid", "miner_hotkey"])
-        block = torch_or_numpy_to_int(self.metagraph.block)
 
         assert owner_uid is not None, "Owner uid not found in metagraph uids"
 
-        return neurons, block, {"uid": owner_uid, "hotkey": owner_hotkey}
+        return neurons, {"uid": owner_uid, "hotkey": owner_hotkey}
 
     async def get_ranked_predictions(self):
         predictions_ranked = await self.db_operations.get_predictions_ranked(
