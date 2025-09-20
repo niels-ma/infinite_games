@@ -25,14 +25,13 @@ class TestMetagraphScoringAlternative:
 
         return DatabaseOperations(db_client=db_client, logger=logger)
 
-    async def test_get_metagraph_neurons_block_and_owner(self):
+    async def test_get_metagraph_neurons_and_owner(self):
         mock_metagraph = MagicMock(spec=AsyncMetagraph, sync=AsyncMock(), owner_hotkey="hotkey10")
         mock_db_operations = MagicMock(spec=DatabaseOperations)
         mock_logger = MagicMock(spec=InfiniteGamesLogger)
 
         mock_metagraph.uids = [torch.tensor(1), np.array(5), np.int64(10), torch.tensor(15)]
         mock_metagraph.hotkeys = {1: "hotkey1", 5: "hotkey5", 10: "hotkey10", 15: "hotkey15"}
-        mock_metagraph.block = torch.tensor(11)
 
         alternative_scoring_task = MetagraphScoringAlternative(
             interval_seconds=60.0,
@@ -44,9 +43,8 @@ class TestMetagraphScoringAlternative:
 
         (
             neurons,
-            block,
             owner,
-        ) = await alternative_scoring_task.get_metagraph_neurons_block_and_owner()
+        ) = await alternative_scoring_task.get_metagraph_neurons_and_owner()
 
         mock_metagraph.sync.assert_awaited_once_with(lite=True)
 
@@ -66,23 +64,18 @@ class TestMetagraphScoringAlternative:
             assert row["miner_uid"] == expected_data[i]["miner_uid"]
             assert row["miner_hotkey"] == expected_data[i]["miner_hotkey"]
 
-        # Verify block and type
-        assert isinstance(block, int)
-        assert block == 11
-
         # Verify owner_uid
         assert isinstance(owner, dict)
         assert owner["uid"] == 10
         assert owner["hotkey"] == "hotkey10"
 
-    async def test_get_metagraph_neurons_block_and_owner_empty_metagraph(self):
+    async def test_get_metagraph_neurons_and_owner_empty_metagraph(self):
         mock_metagraph = MagicMock(spec=AsyncMetagraph, sync=AsyncMock(), owner_hotkey="hotkey_x")
         mock_db_operations = MagicMock(spec=DatabaseOperations)
         mock_logger = MagicMock(spec=InfiniteGamesLogger)
 
         mock_metagraph.uids = []
         mock_metagraph.hotkeys = {}
-        mock_metagraph.block = np.array(1007)
 
         alternative_scoring_task = MetagraphScoringAlternative(
             interval_seconds=60.0,
@@ -93,7 +86,7 @@ class TestMetagraphScoringAlternative:
         )
 
         with pytest.raises(AssertionError, match="Owner uid not found in metagraph uids"):
-            await alternative_scoring_task.get_metagraph_neurons_block_and_owner()
+            await alternative_scoring_task.get_metagraph_neurons_and_owner()
 
         mock_metagraph.sync.assert_awaited_once_with(lite=True)
 
@@ -595,7 +588,7 @@ class TestMetagraphScoringAlternative:
 
         mock_db_operations = MagicMock(spec=DatabaseOperations)
         mock_db_operations.count_events_for_alternative_metagraph_scoring = AsyncMock(
-            return_value=1
+            return_value=9
         )
         mock_db_operations.get_predictions_ranked = AsyncMock()
         mock_db_operations.update_alternative_metagraph_scores = AsyncMock()
@@ -714,7 +707,7 @@ class TestMetagraphScoringAlternative:
         assert MockClusterSelector.initiated_count == 1
         kwargs = MockClusterSelector.call_args
 
-        assert kwargs["metagraph_block"] == 1000
+        assert kwargs["random_seed"] == 9
         assert_frame_equal(kwargs["ranked_predictions"], mock_ranked_predictions, check_dtype=False)
         assert_frame_equal(kwargs["internal_forecasts"], mock_internal_forecasts, check_dtype=False)
         latest_df = kwargs["latest_metagraph_neurons"]
