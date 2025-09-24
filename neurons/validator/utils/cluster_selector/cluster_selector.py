@@ -29,7 +29,8 @@ class ClusterSelector:
         Expected columns: ``['miner_uid', 'miner_hotkey']``.
     internal_forecasts : DataFrame
         Expected columns: ``['event_id', 'prediction']``.
-    metagraph_block: current metagraph block
+    random_seed : int
+        Current random seed for reproducibility.
     """
 
     def __init__(
@@ -51,8 +52,8 @@ class ClusterSelector:
         self.random_seed = random_seed
         self.copy_miner_penalty_pow = COPY_MINER_PENALTY_POW
         self.credit_round_digits = CREDIT_ROUND_DIGITS
-        self.n_bags = 10
-        self.col_frac = 0.8
+        self.n_bags = 1
+        self.col_frac = 1.0
         self.hgb_params = dict(
             max_depth=3,
             learning_rate=0.05,
@@ -143,13 +144,30 @@ class ClusterSelector:
         err_mat = events_predictions.pivot_table(
             index="miner_key", columns="event_id", values="abs_error"
         )
+        row_std = err_mat.std(axis=1, ddof=0)
+        const_idx = row_std <= 1e-12
 
         # hierarchical clustering by correlation distance
-        dist_vec = pdist(err_mat.values, metric="correlation")
-        labels = fcluster(
-            linkage(dist_vec, method="complete"), self.miscorrelation_ro, criterion="distance"
-        )
-        clusters_info = pd.DataFrame({"miner_key": err_mat.index, "cluster_id": labels})
+        if const_idx.any():
+            err_nc = err_mat.loc[~const_idx]  # non-constant rows only
+            dist_vec = pdist(err_nc.values, metric="correlation")
+            labels_nc = fcluster(
+                linkage(dist_vec, method="complete"), self.miscorrelation_ro, criterion="distance"
+            )
+            clusters_info = pd.DataFrame({"miner_key": err_nc.index, "cluster_id": labels_nc})
+
+            # put all constant rows into ONE extra cluster id
+            const_cluster_id = clusters_info["cluster_id"].max() + 1 if len(clusters_info) else 1
+            const_block = pd.DataFrame(
+                {"miner_key": err_mat.index[const_idx], "cluster_id": const_cluster_id}
+            )
+            clusters_info = pd.concat([clusters_info, const_block], ignore_index=True)
+        else:
+            dist_vec = pdist(err_mat.values, metric="correlation")
+            labels = fcluster(
+                linkage(dist_vec, method="complete"), self.miscorrelation_ro, criterion="distance"
+            )
+            clusters_info = pd.DataFrame({"miner_key": err_mat.index, "cluster_id": labels})
 
         # Identify internal forecaster cluster
         ifc_cluster = clusters_info.loc[
@@ -195,7 +213,7 @@ class ClusterSelector:
 
         for cid, g in clusters_data.groupby("cluster_id"):
             pivot = g.pivot_table(
-                index="event_id", columns="miner_key", values="prediction"
+                index="event_id", columns="miner_key", values="prediction", sort=True
             ).fillna(0.5)
             rep_key = pivot.columns[0] if pivot.shape[1] == 1 else self._choose_medoid(pivot)
             raw_p = pivot[rep_key]
@@ -304,19 +322,15 @@ class ClusterSelector:
                 losses.append(log_loss(arr_y[va_idx], p, labels=[0, 1]))
             return float(np.mean(losses))
 
-        bag_pool = set(X_sel.columns) - {ifc_cluster}
+        bag_pool = sorted(list(set(X_sel.columns) - {ifc_cluster}))
         bag_size = int(self.col_frac * len(bag_pool))
 
         if bag_size >= 1:
             for _ in range(self.n_bags):
                 rng = np.random.default_rng(rng_global.integers(0, 2**32 - 1))
-                cv_bag = StratifiedKFold(
-                    n_splits=3, shuffle=True, random_state=rng.integers(0, 2**32 - 1)
-                )
-                cols = list(rng.choice(list(bag_pool), size=bag_size, replace=False)) + [
-                    ifc_cluster
-                ]
-                X_bag = X_sel[cols]
+                cv_bag = StratifiedKFold(n_splits=3, shuffle=False)
+                cols = list(rng.choice(bag_pool, size=bag_size, replace=False)) + [ifc_cluster]
+                X_bag = X_sel[sorted(cols)]
                 base_loss = cv_logloss(X_bag.values, y.values, cv_bag, rng)
                 for col in cols:
                     X_minus = X_bag.drop(columns=col)

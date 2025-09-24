@@ -1,5 +1,9 @@
 # Release Notes
 
+## [1.6.3] - 2025-09-30
+- **Export Scores**: Fix export scores backwards compatibility
+- **Scoring**: Improve consistency across validators for Precog Index
+
 ## [1.6.2] - 2025-09-20
 - **Scoring**: Consistent random seed across validators for Precog Index
 
