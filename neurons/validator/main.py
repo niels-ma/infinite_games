@@ -84,7 +84,7 @@ async def main():
     )
 
     resolve_events_task = ResolveEvents(
-        interval_seconds=1800.0,
+        interval_seconds=900.0,
         db_operations=db_operations,
         api_client=ifgames_api_client,
         page_size=100,
@@ -134,7 +134,7 @@ async def main():
     )
 
     metagraph_scoring_alternative_task = MetagraphScoringAlternative(
-        interval_seconds=1199.0,
+        interval_seconds=323.0,
         cluster_selector_cls=ClusterSelector,
         db_operations=db_operations,
         metagraph=bt_metagraph,

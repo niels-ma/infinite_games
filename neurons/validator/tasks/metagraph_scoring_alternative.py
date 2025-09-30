@@ -95,11 +95,17 @@ class MetagraphScoringAlternative(AbstractTask):
         event_ids = ranked_predictions["event_id"].unique().tolist()
         internal_forecasts = await self.get_internal_forecasts(event_ids=event_ids)
 
+        self.logger.debug(
+            "Calculate clusters credits",
+            extra={"random_seed": count_events_to_process},
+        )
+
         cluster_selector = self.cluster_selector_cls(
             ranked_predictions=ranked_predictions,
             latest_metagraph_neurons=metagraph_neurons,
             internal_forecasts=internal_forecasts,
             random_seed=count_events_to_process,
+            logger=self.logger,
         )
 
         selected_clusters_credits = await asyncio.to_thread(

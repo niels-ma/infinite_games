@@ -1,6 +1,11 @@
 # Release Notes
 
-## [1.6.3] - 2025-09-30
+## [1.6.4] - 2025-10-01
+- **Scoring**: Align events ranking across validators for Precog Index
+- **Validator**: Increase the frequency of some tasks
+- **Bittensor Upgrade**: Upgraded to Bittensor version 9.11.1
+
+## [1.6.3] - 2025-09-25
 - **Export Scores**: Fix export scores backwards compatibility
 - **Scoring**: Improve consistency across validators for Precog Index
 

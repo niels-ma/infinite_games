@@ -411,35 +411,28 @@ class DatabaseOperations:
     async def get_predictions_ranked(self, moving_window: int):
         return await self.__db_client.many(
             """
-                WITH events_pool AS (
+                WITH ranked_events AS (
                     SELECT
-                        event_id,
-                        MIN(ROWID) AS event_min_row
-                    FROM
-                        scores
-                    GROUP BY
-                        event_id
-                ),
-                ranked_events AS (
-                    SELECT
-                        event_id,
-                        RANK() OVER (ORDER BY event_min_row DESC) AS event_rank
-                    FROM
-                        events_pool
+                        e.event_id,
+                        ROW_NUMBER() OVER (ORDER BY e.resolved_at DESC, e.event_id ASC) AS event_rank,
+                        e.outcome
+                    FROM events e
+                    WHERE e.resolved_at IS NOT NULL
+                        AND e.resolved_at >= CURRENT_DATE - 10
                 )
                 SELECT
                     rev.event_id,
                     rev.event_rank,
-                    ev.outcome,
+                    rev.outcome,
                     sc.miner_uid,
                     sc.miner_hotkey,
                     sc.prediction
                 FROM
                     ranked_events rev
                 JOIN scores sc USING(event_id)
-                JOIN events ev USING(event_id)
                 WHERE
                     rev.event_rank <= ?
+                    AND sc.created_at >= CURRENT_DATE - 10
                 ORDER BY
                     rev.event_rank ASC, sc.miner_uid ASC, sc.miner_hotkey ASC
             """,
