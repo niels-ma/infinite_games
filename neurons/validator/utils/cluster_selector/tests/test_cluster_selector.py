@@ -1,7 +1,10 @@
+from unittest.mock import MagicMock
+
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
 from neurons.validator.utils.cluster_selector.cluster_selector import ClusterSelector
+from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 
 
 class TestClusterSelector:
@@ -36,6 +39,7 @@ class TestClusterSelector:
             latest_metagraph_neurons=pd.DataFrame(),
             internal_forecasts=pd.DataFrame(),
             random_seed=0,
+            logger=MagicMock(spec=InfiniteGamesLogger),
         )
         events_predictions, events = unit.prepare_events_predictions(
             ranked_predictions=ranked_predictions,
@@ -257,6 +261,7 @@ class TestClusterSelector:
             latest_metagraph_neurons=latest_metagraph_neurons,
             internal_forecasts=internal_forecasts,
             random_seed=123,
+            logger=MagicMock(spec=InfiniteGamesLogger),
         )
 
         # Cluster miners

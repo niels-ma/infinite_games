@@ -9,6 +9,8 @@ from sklearn.linear_model import LogisticRegressionCV
 from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
 
+from neurons.validator.utils.logger.logger import InfiniteGamesLogger
+
 COPY_MINER_PENALTY_POW = 2
 PREDICTION_ROUND_DIGITS = 2
 CREDIT_ROUND_DIGITS = 3
@@ -31,6 +33,8 @@ class ClusterSelector:
         Expected columns: ``['event_id', 'prediction']``.
     random_seed : int
         Current random seed for reproducibility.
+    logger: InfiniteGamesLogger
+        Logger instance.
     """
 
     def __init__(
@@ -39,7 +43,12 @@ class ClusterSelector:
         latest_metagraph_neurons: pd.DataFrame,
         internal_forecasts: pd.DataFrame,
         random_seed: int,
+        logger: InfiniteGamesLogger,
     ) -> None:
+        # Validate logger
+        if not isinstance(logger, InfiniteGamesLogger):
+            raise TypeError("logger must be an instance of InfiniteGamesLogger.")
+
         # Core data
         self.ranked_predictions = ranked_predictions.copy()
         self.latest_metagraph_neurons = latest_metagraph_neurons.copy()
@@ -62,6 +71,8 @@ class ClusterSelector:
         )
 
         self.selected_clusters_credit: pd.DataFrame | None = None
+
+        self.logger = logger
 
     def _choose_medoid(self, matrix: pd.DataFrame) -> str:
         """Return the column label whose miner is the medoid (min sum of
@@ -188,6 +199,14 @@ class ClusterSelector:
 
     def calculate_selected_clusters_credits(self) -> pd.DataFrame:
         """Run the full pipeline and return ``selected_clusters_credit``."""
+        event_ranks = (
+            self.ranked_predictions[["event_id", "event_rank"]]
+            .drop_duplicates()
+            .sort_values(by=["event_rank"])
+        )
+        self.logger.debug(
+            "Logging event ranks", extra={"event_ranks": event_ranks.to_dict(orient="records")}
+        )
 
         # -------------------------------------------------------------
         # 1. Prepare *recent* predictions with an internal forecaster
@@ -229,6 +248,10 @@ class ClusterSelector:
             )
             cid_rep_map[cid] = rep_key
 
+        self.logger.debug(
+            "Cluster representatives",
+            extra={"cid_rep_map": cid_rep_map, "ifc_cluster": int(ifc_cluster)},
+        )
         clusters_info["representative_key"] = clusters_info["cluster_id"].map(cid_rep_map)
 
         # -------------------------------------------------------------
@@ -300,9 +323,19 @@ class ClusterSelector:
         if_ll = logloss_df.loc[logloss_df["cluster_id"] == ifc_cluster, "scaled_log_loss"].iat[0]
         ref_ll = min(base_ll, if_ll)
 
+        self.logger.debug(
+            "Log-loss filtering",
+            extra={"base_log_loss": base_ll, "ifc_log_loss": if_ll, "ref_log_loss": ref_ll},
+        )
+
         ll_cols = logloss_df.loc[logloss_df["scaled_log_loss"] <= ref_ll, "cluster_id"].values
         ll_cols = np.union1d(ll_cols, ifc_cluster)
         X_sel = X_net[ll_cols]
+
+        self.logger.debug(
+            "Order of events for HGB",
+            extra={"event_order": X_sel.index.tolist()},
+        )
 
         # -------------------------------------------------------------
         # 8. Bagged leave-one-out importance (HistGB)
@@ -376,10 +409,9 @@ class ClusterSelector:
 
         # Remove internal forecaster and its cluster from crediting - it will be burned later
         is_ifc = selected_clusters_credit["miner_hotkey"].eq("internal_forecaster")
-        # TODO: log.debug the IF credit burn for information
-        # ifc_burn = float(
-        #     selected_clusters_credit.loc[is_ifc, "round_credit_per_miner"].sum()
-        # )
+        ifc_burn = float(selected_clusters_credit.loc[is_ifc, "round_credit_per_miner"].sum())
+        self.logger.info("Internal forecaster burn", extra={"ifc_burn": ifc_burn})
+
         selected_clusters_credit = selected_clusters_credit.loc[~is_ifc].copy()
 
         self.selected_clusters_credit = selected_clusters_credit.sort_values(
