@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -448,12 +448,12 @@ class TestIfGamesClient:
                         "interval_start_minutes": 100,
                         "interval_agg_prediction": 1.0,
                         "interval_agg_count": 1,
-                        "interval_datetime": datetime.now(),
+                        "interval_datetime": datetime.now(timezone.utc),
                         "miner_hotkey": "miner_hotkey",
                         "miner_uid": 1,
                         "validator_hotkey": "validator_hotkey",
                         "validator_uid": 2,
-                        "submitted_at": datetime.now(),
+                        "submitted_at": datetime.now(timezone.utc),
                         "title": None,
                         "outcome": None,
                     }
@@ -494,12 +494,12 @@ class TestIfGamesClient:
                         "interval_start_minutes": 100,
                         "interval_agg_prediction": 1.0,
                         "interval_agg_count": 1,
-                        "interval_datetime": datetime.now(),
+                        "interval_datetime": datetime.now(timezone.utc),
                         "miner_hotkey": "miner_hotkey",
                         "miner_uid": 1,
                         "validator_hotkey": "validator_hotkey",
                         "validator_uid": 2,
-                        "submitted_at": datetime.now(),
+                        "submitted_at": datetime.now(timezone.utc),
                         "title": None,
                         "outcome": None,
                     }
@@ -547,8 +547,8 @@ class TestIfGamesClient:
                         "validator_hotkey": "validator_hotkey",
                         "validator_uid": 2,
                         "spec_version": "1.3.3",
-                        "registered_date": datetime.now(),
-                        "scored_at": datetime.now(),
+                        "registered_date": datetime.now(timezone.utc),
+                        "scored_at": datetime.now(timezone.utc),
                     }
                 ]
             }
@@ -590,8 +590,8 @@ class TestIfGamesClient:
                         "validator_hotkey": "validator_hotkey",
                         "validator_uid": 2,
                         "spec_version": "1.3.3",
-                        "registered_date": datetime.now(),
-                        "scored_at": datetime.now(),
+                        "registered_date": datetime.now(timezone.utc),
+                        "scored_at": datetime.now(timezone.utc),
                     }
                 ]
             }

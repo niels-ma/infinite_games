@@ -137,7 +137,7 @@ class TestSetWeights:
                 prediction=0.9,
                 event_id="e1",
                 spec_version=1,
-                created_at=datetime.now() - timedelta(minutes=3),
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=3),
             ),
             ScoresModel(
                 miner_uid=2,
@@ -147,7 +147,7 @@ class TestSetWeights:
                 prediction=0.7,
                 event_id="e2",
                 spec_version=1,
-                created_at=datetime.now() - timedelta(minutes=2),
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=2),
             ),
             ScoresModel(
                 miner_uid=4,
@@ -157,7 +157,7 @@ class TestSetWeights:
                 prediction=0.4,
                 event_id="e3",
                 spec_version=1,
-                created_at=datetime.now(),
+                created_at=datetime.now(timezone.utc),
             ),
         ]
 

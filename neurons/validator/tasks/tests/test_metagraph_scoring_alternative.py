@@ -234,6 +234,60 @@ class TestMetagraphScoringAlternative:
         # event2 should not be in results due to None/empty forecasts
         assert "event2" not in result_dict
 
+    async def test_get_internal_forecasts_unordered_forecasts(
+        self, db_operations: DatabaseOperations
+    ):
+        mock_metagraph = MagicMock(spec=AsyncMetagraph)
+        mock_logger = MagicMock(spec=InfiniteGamesLogger)
+
+        events = [
+            EventsModel(
+                unique_event_id="ifgames-event1",
+                event_id="event1",
+                market_type="truncated_market1",
+                event_type="market1",
+                description="desc1",
+                outcome="1",
+                status=EventStatus.SETTLED,
+                metadata='{"key": "value1"}',
+                created_at="2000-12-02T14:30:00+00:00",
+                cutoff="2000-12-30T14:30:00+00:00",
+                forecasts='{"2025-01-22T16:10:15Z": 0, "2025-01-21T16:10:15Z": 0.5, "2025-01-20T16:10:15Z": 100}',
+            ),
+        ]
+
+        await db_operations.upsert_events(events=events)
+
+        alternative_scoring_task = MetagraphScoringAlternative(
+            interval_seconds=60.0,
+            cluster_selector_cls=ClusterSelector,
+            db_operations=db_operations,
+            metagraph=mock_metagraph,
+            logger=mock_logger,
+        )
+
+        event_ids = ["event1"]
+        result = await alternative_scoring_task.get_internal_forecasts(event_ids=event_ids)
+
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == ["event_id", "prediction"]
+        assert len(result) == 1
+
+        # Verify the results with correct order
+        result_dict = result.set_index("event_id")["prediction"].to_dict()
+
+        def weighted_average(values: list[float]):
+            n = len(values)
+
+            weights = [PeerScoring.power_decay_weight(i, n) for i in range(n)]
+
+            sum_forecasts_weighted = sum(v * w for v, w in zip(values, weights))
+            sum_weights = sum(weights)
+
+            return sum_forecasts_weighted / sum_weights
+
+        assert result_dict["event1"] == weighted_average([100, 0.5, 0])
+
     async def test_get_internal_forecasts_empty_list(self, db_operations: DatabaseOperations):
         mock_metagraph = MagicMock(spec=AsyncMetagraph)
         mock_logger = MagicMock(spec=InfiniteGamesLogger)

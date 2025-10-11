@@ -1,5 +1,9 @@
 # Release Notes
 
+## [1.6.5] - 2025-10-11
+- **Scoring**: Ensure internal forecasts order
+- **Miners Querying**: Ensure UTC timestamps in store miners
+
 ## [1.6.4] - 2025-10-01
 - **Scoring**: Align events ranking across validators for Precog Index
 - **Validator**: Increase the frequency of some tasks
