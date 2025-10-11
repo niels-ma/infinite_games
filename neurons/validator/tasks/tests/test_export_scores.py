@@ -155,8 +155,8 @@ class TestExportScores:
                         "validator_hotkey": "validator_hotkey",
                         "validator_uid": 2,
                         "spec_version": "1.3.3",
-                        "registered_date": datetime.now(),
-                        "scored_at": datetime.now(),
+                        "registered_date": datetime.now(timezone.utc),
+                        "scored_at": datetime.now(timezone.utc),
                     }
                 ]
             }

@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 from bittensor.core.chain_data import AxonInfo
@@ -289,7 +289,7 @@ class QueryMiners(AbstractTask):
         miners_count_in_db = await self.db_operations.get_miners_count()
 
         registered_date = (
-            datetime.now().isoformat()
+            datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
             if miners_count_in_db > 0
             else datetime(year=2024, month=1, day=1).isoformat()
         )

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -65,14 +65,14 @@ async def test_llm_forecaster_with_sn13_get_question(llm_forecaster_with_sn13):
             data=[
                 SN13Data(
                     uri="test_uri",
-                    datetime=datetime.now(),
+                    datetime=datetime.now(timezone.utc),
                     source="X",
                     content="test_content_1",
                     label=None,
                 ),
                 SN13Data(
                     uri="test_uri",
-                    datetime=datetime.now(),
+                    datetime=datetime.now(timezone.utc),
                     source="X",
                     content="test_content_2",
                     label=None,

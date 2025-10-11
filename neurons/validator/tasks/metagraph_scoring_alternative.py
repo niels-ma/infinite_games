@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -176,7 +177,14 @@ class MetagraphScoringAlternative(AbstractTask):
 
             event_forecasts = json.loads(event.forecasts)
 
-            event_forecasts_values = list(event_forecasts.values())
+            # Sort the forecasts by timestamp key, older to newer
+            event_forecasts_values = [
+                value
+                for _, value in sorted(
+                    event_forecasts.items(),
+                    key=lambda x: datetime.fromisoformat(x[0].replace("Z", "+00:00")),
+                )
+            ]
 
             n_intervals = len(event_forecasts_values)
 
