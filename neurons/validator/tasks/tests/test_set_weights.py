@@ -392,8 +392,8 @@ class TestSetWeights:
             "netuid": set_weights_task.netuid,
             "wallet": set_weights_task.wallet,
             "version_key": set_weights_task.spec_version,
-            "wait_for_inclusion": False,
-            "wait_for_finalization": False,
+            "wait_for_inclusion": True,
+            "wait_for_finalization": True,
             "max_retries": 5,
         }
 

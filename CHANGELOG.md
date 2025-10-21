@@ -1,5 +1,8 @@
 # Release Notes
 
+## [1.6.6] - 2025-10-22
+- **Weights**: Await for inclusion and finalization when setting weights
+
 ## [1.6.5] - 2025-10-11
 - **Scoring**: Ensure internal forecasts order
 - **Miners Querying**: Ensure UTC timestamps in store miners
