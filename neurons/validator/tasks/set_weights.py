@@ -304,8 +304,8 @@ class SetWeights(AbstractTask):
             uids=processed_uids,
             weights=processed_weights,
             version_key=self.spec_version,
-            wait_for_inclusion=False,
-            wait_for_finalization=False,  # can take more than 5 mins when True
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
             max_retries=5,
         )
         if not successful:
