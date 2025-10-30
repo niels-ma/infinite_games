@@ -4,9 +4,10 @@ aiohttp~=3.10.2
 aiosqlite==0.21.0
 alembic==1.14.1
 anthropic==0.28.0
+async-substrate-interface==1.5.7
 backoff==2.2.1
-bittensor-cli==9.12.0
-bittensor==9.11.1
+bittensor-cli==9.14.1
+bittensor==9.12.1
 fastapi==0.110.3
 forecasting-tools==0.2.12
 gnews==0.3.7
@@ -18,4 +19,4 @@ slowapi==0.1.9
 sqlalchemy==2.0.37
 torch==2.3.1+cpu
 uvicorn==0.34.0
-websockets==14.1
+websockets==15.0.1
