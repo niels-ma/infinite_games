@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, AsyncMock, MagicMock
 
 import bittensor as bt
+import numpy as np
 import pandas as pd
 import pytest
 import torch
@@ -416,10 +417,11 @@ class TestSetWeights:
                 set_weights_task.logger.error.assert_called_with(expected_log, extra=extra)
 
     @pytest.mark.asyncio
-    async def test_run_successful(self, set_weights_task: SetWeights, monkeypatch, db_client):
+    async def test_run_successful_x(self, set_weights_task: SetWeights, monkeypatch, db_client):
         unit = set_weights_task
-        unit.metagraph.uids = torch.tensor([2, 3, 4, 5], dtype=torch.int32)
-        unit.metagraph.hotkeys = ["hk2", "hk3", "hk4", "hk5"]
+        unit.metagraph.owner_hotkey = "hk3"
+        unit.metagraph.uids = torch.tensor([0, 1, 2, 3, 4], dtype=torch.int32)
+        unit.metagraph.hotkeys = ["hk0", "hk1", "hk2", "hk3", "hk4"]
         unit.last_set_weights_at = time.time() - 101 * BLOCK_DURATION
 
         created_at = datetime.now(timezone.utc) - timedelta(days=1)
@@ -509,7 +511,7 @@ class TestSetWeights:
         # run the task
         await unit.run()
 
-        assert unit.logger.debug.call_count == 4
+        assert unit.logger.debug.call_count == 2
         assert unit.logger.warning.call_count == 0
         assert unit.logger.error.call_count == 0
 
@@ -517,21 +519,41 @@ class TestSetWeights:
         assert debug_calls[0][0][0] == "Attempting to set the weights - enough blocks passed."
         assert debug_calls[0][1]["extra"]["blocks_since_last_attempt"] >= 100
 
-        assert debug_calls[1][0][0] == "Stats for filter last scores"
-        assert debug_calls[1][1]["extra"]["len_last_metagraph_scores"] == 3
-        assert debug_calls[1][1]["extra"]["len_filtered_scores"] == 4
-        assert debug_calls[1][1]["extra"]["len_current_miners"] == 4
-        assert debug_calls[1][1]["extra"]["len_valid_meta_scores"] == 3
-
-        assert debug_calls[2][0][0] == "Top 5 and bottom 5 miners by raw_weights"
-        assert debug_calls[2][1]["extra"]["sum_scores"] == 1.0
-        assert list(debug_calls[2][1]["extra"]["top_5"][SWNames.miner_uid].values()) == [3, 4, 2, 5]
-
-        assert debug_calls[3][0][0] == "Weights set successfully."
+        assert debug_calls[1][0][0] == "Weights set successfully."
 
         assert unit.subtensor.set_weights.call_count == 1
-        assert unit.subtensor.set_weights.call_args.kwargs["uids"].tolist() == [3, 4]
+        assert unit.subtensor.set_weights.call_args.kwargs["uids"].tolist() == [3]
         torch.testing.assert_close(
             unit.subtensor.set_weights.call_args.kwargs["weights"],
-            torch.tensor([0.8350, 0.1650], dtype=torch.float),
+            torch.tensor([1.0], dtype=torch.float),
         )
+
+    def test_get_owner_neuron(self, set_weights_task: SetWeights):
+        set_weights_task.metagraph.owner_hotkey = "hotkey10"
+        set_weights_task.metagraph.uids = [
+            torch.tensor(1),
+            np.array(5),
+            np.int64(10),
+            torch.tensor(15),
+        ]
+        set_weights_task.metagraph.hotkeys = {
+            1: "hotkey1",
+            5: "hotkey5",
+            10: "hotkey10",
+            15: "hotkey15",
+        }
+
+        owner = set_weights_task.get_owner_neuron()
+
+        # Verify owner_uid
+        assert isinstance(owner, dict)
+        assert owner["uid"] == 10
+        assert owner["hotkey"] == "hotkey10"
+
+    def test_get_owner_neuron_empty_metagraph(self, set_weights_task: SetWeights):
+        set_weights_task.metagraph.owner_hotkey = None
+        set_weights_task.metagraph.uids = []
+        set_weights_task.metagraph.hotkeys = {}
+
+        with pytest.raises(AssertionError, match="Owner uid not found in metagraph uids"):
+            set_weights_task.get_owner_neuron()

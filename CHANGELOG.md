@@ -1,5 +1,10 @@
 # Release Notes
 
+## [1.6.7] - 2025-10-28
+- **Bittensor Upgrade**: Upgraded to Bittensor version 9.12.1
+- **Dependencies**: Pin async-substrate-interface to prevent reconnection loop
+- **Weights**: Burn incentives
+
 ## [1.6.6] - 2025-10-22
 - **Weights**: Await for inclusion and finalization when setting weights
 

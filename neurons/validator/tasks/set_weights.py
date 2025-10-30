@@ -12,7 +12,10 @@ from bittensor_wallet.wallet import Wallet
 
 from neurons.validator.db.operations import DatabaseOperations
 from neurons.validator.scheduler.task import AbstractTask
-from neurons.validator.utils.common.converters import pydantic_models_to_dataframe
+from neurons.validator.utils.common.converters import (
+    pydantic_models_to_dataframe,
+    torch_or_numpy_to_int,
+)
 from neurons.validator.utils.common.interval import BLOCK_DURATION
 from neurons.validator.utils.logger.logger import InfiniteGamesLogger
 from neurons.validator.version import __spec_version__ as spec_version
@@ -330,6 +333,23 @@ class SetWeights(AbstractTask):
                 },
             )
 
+    def get_owner_neuron(self):
+        owner_uid = None
+        owner_hotkey = self.metagraph.owner_hotkey
+
+        for uid in self.metagraph.uids:
+            int_uid = torch_or_numpy_to_int(uid)
+            hotkey = self.metagraph.hotkeys[int_uid]
+
+            if hotkey == owner_hotkey:
+                owner_uid = int_uid
+
+                break
+
+        assert owner_uid is not None, "Owner uid not found in metagraph uids"
+
+        return {"uid": owner_uid, "hotkey": owner_hotkey}
+
     async def run(self):
         await self.metagraph_lite_sync()
 
@@ -338,19 +358,10 @@ class SetWeights(AbstractTask):
         if not can_set_weights:
             return
 
-        last_alternative_metagraph_scores = (
-            await self.db_operations.get_last_alternative_metagraph_scores()
-        )
+        owner = self.get_owner_neuron()
 
-        if last_alternative_metagraph_scores is None:
-            raise ValueError("Failed to get the last metagraph scores.")
+        scores = pd.DataFrame({SWNames.miner_uid: [owner["uid"]], SWNames.raw_weights: [1.0]})
 
-        filtered_scores = self.filter_last_scores(last_alternative_metagraph_scores)
-
-        self.check_scores_sanity(filtered_scores)
-
-        normalized_scores = self.renormalize_weights(filtered_scores)
-
-        uids, weights = await self.preprocess_weights(normalized_scores)
+        uids, weights = await self.preprocess_weights(normalized_scores=scores)
 
         await self.subtensor_set_weights(processed_uids=uids, processed_weights=weights)
